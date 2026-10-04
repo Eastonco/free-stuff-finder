@@ -28,6 +28,7 @@ export const users = pgTable("users", {
   createdAt: varchar("created_at").notNull(),
   pickupPhone: text("pickup_phone"), // E.164, optional — used by the "GET" draft button
   pickupNote: text("pickup_note"), // free-text, woven into the AI pickup message
+  isAdmin: boolean("is_admin").notNull().default(false), // sees /admin; grant with `pnpm --filter @fsf/db grant-admin`
 });
 
 export const searches = pgTable(
@@ -192,3 +193,37 @@ export const workerStatus = pgTable("worker_status", {
   failOpenAlertsPaused: boolean("fail_open_alerts_paused").notNull().default(false),
   notifyDryRun: boolean("notify_dry_run").notNull().default(false),
 });
+
+// ---------------------------------------------------------------------------
+// Web sign-in. Tokens are stored as sha256 hashes only; the raw value lives in
+// the user's cookie (sessions) or in the one-time link we send them (login_tokens).
+// ---------------------------------------------------------------------------
+
+/** A signed-in browser. */
+export const sessions = pgTable(
+  "sessions",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: tstz("created_at").notNull().defaultNow(),
+    expiresAt: tstz("expires_at").notNull(),
+  },
+  (t) => [index("sessions_user_idx").on(t.userId)],
+);
+
+/** A one-time sign-in link sent to the user's notification channel. */
+export const loginTokens = pgTable(
+  "login_tokens",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: tstz("created_at").notNull().defaultNow(),
+    expiresAt: tstz("expires_at").notNull(),
+    usedAt: tstz("used_at"),
+  },
+  (t) => [index("login_tokens_user_idx").on(t.userId, t.createdAt)],
+);
