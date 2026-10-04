@@ -6,10 +6,16 @@ const bool = z
   .transform((v) => ["1", "true", "yes", "on"].includes((v ?? "").trim().toLowerCase()));
 
 const Env = z.object({
-  ANTHROPIC_API_KEY: z
-    .string({ error: "ANTHROPIC_API_KEY is required" })
+  OPENROUTER_API_KEY: z
+    .string({ error: "OPENROUTER_API_KEY is required" })
     .trim()
-    .min(1, "ANTHROPIC_API_KEY is required — without it every item would fail open and alert"),
+    .min(1, "OPENROUTER_API_KEY is required — without it every item would fail open and alert"),
+  /** Which model answers "does this item match?": Claude Haiku (default; sees the photo) or jev (text only). */
+  CLASSIFIER: z.enum(["haiku", "jev"]).default("haiku"),
+  /** Override the classifier's OpenRouter model id. */
+  CLASSIFIER_MODEL: z.string().trim().optional(),
+  /** jev returns a probability; at or above this it's a 'want'. */
+  JEV_WANT_THRESHOLD: z.coerce.number().min(0).max(1).default(0.5),
   /** Shadow mode: classify and record everything, but send nothing. */
   NOTIFY_DRY_RUN: bool,
   NTFY_SERVER: z.url().default("https://ntfy.sh"),
