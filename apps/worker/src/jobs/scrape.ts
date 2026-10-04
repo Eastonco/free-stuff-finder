@@ -32,29 +32,44 @@ export async function runScrape(ctx: Ctx, data: { searchUrlId: number }): Promis
   let pendingIds: number[] = [];
 
   if (listed.length) {
-    // Insert-or-ignore, then read ids back: no row churn for the ~hundreds of posts we've already seen.
-    const inserted = await db
-      .insert(posts)
-      .values(listed.map((p) => ({ sourceId: p.sourceId, link: p.link, title: p.title, location: p.location })))
-      .onConflictDoNothing()
-      .returning({ id: posts.id });
+    // Look first, insert only what's missing. An INSERT that hits ON CONFLICT
+    // still consumes a sequence value, so inserting all ~360 listed posts every
+    // cycle would burn ids ~1000x faster than real rows arrive. ON CONFLICT stays
+    // as a guard for the rare race with a concurrent scrape of an overlapping URL.
+    const sourceIds = listed.map((p) => p.sourceId);
+    const known = await postIdsFor(db, sourceIds);
+    const unseen = listed.filter((p) => !known.has(p.sourceId));
+    const inserted = unseen.length
+      ? await db
+          .insert(posts)
+          .values(unseen.map((p) => ({ sourceId: p.sourceId, link: p.link, title: p.title, location: p.location })))
+          .onConflictDoNothing()
+          .returning({ id: posts.id, sourceId: posts.sourceId })
+      : [];
     result.newPosts = inserted.length;
-
-    const postRows = await db
-      .select({ id: posts.id })
-      .from(posts)
-      .where(
-        and(
-          eq(posts.source, "craigslist"),
-          inArray(
-            posts.sourceId,
-            listed.map((p) => p.sourceId),
-          ),
-        ),
-      );
-    const postIds = postRows.map((p) => p.id);
+    for (const r of inserted) known.set(r.sourceId, r.id);
+    // lost a race for some of them: read back the ids the other scrape inserted
+    const postIds =
+      inserted.length < unseen.length ? [...(await postIdsFor(db, sourceIds)).values()] : [...known.values()];
 
     await db.transaction(async (tx) => {
+      /** Inserts (searchId, post) matches that don't exist yet; returns the new match ids. */
+      const insertMissing = async (searchId: number, row: { status: string; decidedAt?: Date }) => {
+        const have = await tx
+          .select({ postId: matches.postId })
+          .from(matches)
+          .where(and(eq(matches.searchId, searchId), inArray(matches.postId, postIds)));
+        const haveSet = new Set(have.map((h) => h.postId));
+        const missing = postIds.filter((id) => !haveSet.has(id));
+        if (!missing.length) return [];
+        const rows = await tx
+          .insert(matches)
+          .values(missing.map((postId) => ({ searchId, postId, ...row })))
+          .onConflictDoNothing()
+          .returning({ id: matches.id });
+        return rows.map((r) => r.id);
+      };
+
       // Watches on their first scrape: everything currently listed is baseline.
       const fresh = await tx
         .update(searchWatches)
@@ -62,12 +77,7 @@ export async function runScrape(ctx: Ctx, data: { searchUrlId: number }): Promis
         .where(and(eq(searchWatches.searchUrlId, target.id), isNull(searchWatches.baselinedAt)))
         .returning({ searchId: searchWatches.searchId });
       for (const w of fresh) {
-        const rows = await tx
-          .insert(matches)
-          .values(postIds.map((postId) => ({ searchId: w.searchId, postId, status: "baseline", decidedAt: now })))
-          .onConflictDoNothing()
-          .returning({ id: matches.id });
-        result.baselined += rows.length;
+        result.baselined += (await insertMissing(w.searchId, { status: "baseline", decidedAt: now })).length;
       }
 
       // Everyone else: pairs without a row become 'pending' and get a match job.
@@ -80,14 +90,7 @@ export async function runScrape(ctx: Ctx, data: { searchUrlId: number }): Promis
       ).filter((w) => !baselinedIds.has(w.searchId));
 
       const pending: number[] = [];
-      for (const w of established) {
-        const rows = await tx
-          .insert(matches)
-          .values(postIds.map((postId) => ({ searchId: w.searchId, postId, status: "pending" })))
-          .onConflictDoNothing()
-          .returning({ id: matches.id });
-        pending.push(...rows.map((r) => r.id));
-      }
+      for (const w of established) pending.push(...(await insertMissing(w.searchId, { status: "pending" })));
       pendingIds = pending;
     });
     result.queued = pendingIds.length;
@@ -118,6 +121,15 @@ export async function runScrape(ctx: Ctx, data: { searchUrlId: number }): Promis
 
   ctx.log.info("scraped", { url: target.url, ...result });
   return result;
+}
+
+/** sourceId → post id for the posts we already have. */
+async function postIdsFor(db: Ctx["db"], sourceIds: string[]): Promise<Map<string, number>> {
+  const rows = await db
+    .select({ id: posts.id, sourceId: posts.sourceId })
+    .from(posts)
+    .where(and(eq(posts.source, "craigslist"), inArray(posts.sourceId, sourceIds)));
+  return new Map(rows.map((r) => [r.sourceId, r.id]));
 }
 
 /** now + interval, jittered ±20% so URLs don't all fire on the same tick. */

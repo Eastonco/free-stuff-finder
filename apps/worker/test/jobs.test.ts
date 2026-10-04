@@ -7,6 +7,7 @@ import {
   searches,
   searchUrls,
   searchWatches,
+  sql,
   users,
   workerStatus,
 } from "@fsf/db";
@@ -121,6 +122,32 @@ describe.skipIf(!testDbName)("worker jobs (Postgres)", () => {
     expect(pending).toHaveLength(1);
     expect(t.enqueued).toEqual([{ queue: "match", data: { matchId: pending[0]!.id } }]);
     expect(pending[0]!.searchId).toBe(search.id);
+  });
+
+  it("re-scraping an unchanged page doesn't consume ids, and ids are 64-bit", async () => {
+    await seedSearch();
+    await seedSearch({ urls: [URL_A] }); // two watchers on one URL
+    const page = searchPage([
+      { id: "p1", title: "Couch" },
+      { id: "p2", title: "Chair" },
+    ]);
+    const t = testCtx(conn.db, { pages: { [URL_A]: page } });
+    const seq = async () =>
+      (
+        await conn.db.execute<{ posts: string; matches: string }>(
+          sql`select (select last_value from posts_id_seq) as posts, (select last_value from matches_id_seq) as matches`,
+        )
+      )[0];
+
+    await scheduleAndScrape(t); // baseline: 2 posts, 4 matches
+    const before = await seq();
+    for (let i = 0; i < 3; i++) await scheduleAndScrape(t);
+    expect(await seq()).toEqual(before);
+
+    const types = await conn.db.execute<{ seq: string; type: string }>(
+      sql`select sequencename as seq, data_type::text as type from pg_sequences where sequencename in ('posts_id_seq', 'matches_id_seq') order by 1`,
+    );
+    expect(types.map((r) => r.type)).toEqual(["bigint", "bigint"]);
   });
 
   it("a search added later baselines what's already listed instead of alerting", async () => {

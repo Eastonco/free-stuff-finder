@@ -6,6 +6,8 @@
 // adopted migrations without a rebuild. `listings` is that scraper's history,
 // kept as a frozen archive (copied into posts/matches by migration 0004).
 import {
+  bigint,
+  bigserial,
   boolean,
   foreignKey,
   index,
@@ -106,7 +108,7 @@ export const searchWatches = pgTable(
 export const posts = pgTable(
   "posts",
   {
-    id: serial("id").primaryKey(),
+    id: bigserial("id", { mode: "number" }).primaryKey(),
     source: text("source").notNull().default("craigslist"),
     sourceId: text("source_id").notNull(),
     link: text("link").notNull(),
@@ -129,11 +131,11 @@ export const posts = pgTable(
 export const matches = pgTable(
   "matches",
   {
-    id: serial("id").primaryKey(),
+    id: bigserial("id", { mode: "number" }).primaryKey(),
     searchId: integer("search_id")
       .notNull()
       .references(() => searches.id, { onDelete: "cascade" }),
-    postId: integer("post_id")
+    postId: bigint("post_id", { mode: "number" })
       .notNull()
       .references(() => posts.id, { onDelete: "cascade" }),
     status: text("status").notNull(),
@@ -154,7 +156,7 @@ export const matches = pgTable(
 /** Delivery attempts for a 'want' match. status: 'sent' | 'failed' | 'dry_run' */
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
-  matchId: integer("match_id")
+  matchId: bigint("match_id", { mode: "number" })
     .notNull()
     .unique()
     .references(() => matches.id, { onDelete: "cascade" }),
