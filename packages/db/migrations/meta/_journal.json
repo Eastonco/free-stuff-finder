@@ -36,6 +36,13 @@
       "when": 1791138712880,
       "tag": "0004_backfill_from_listings",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791139124255,
+      "tag": "0005_retire_python",
+      "breakpoints": true
     }
   ]
 }

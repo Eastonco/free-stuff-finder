@@ -33,7 +33,7 @@ export async function freshTestDb() {
 
 export async function resetTables(db: Db) {
   await db.execute(
-    sql`truncate users, searches, listings, reactions, scraper_status, search_urls, search_watches, posts, matches, notifications, worker_status restart identity cascade`,
+    sql`truncate users, searches, listings, search_urls, search_watches, posts, matches, notifications, worker_status restart identity cascade`,
   );
 }
 

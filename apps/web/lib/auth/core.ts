@@ -84,8 +84,13 @@ export async function consumeLoginToken(db: Db, token: string, now = new Date())
   return row?.userId ?? null;
 }
 
-/** Pre-accounts edit links (/profile/<edit_token>) still sign their owner in. */
+/** Pre-accounts edit links (/profile/<edit_token>) still sign their owner in. Stored hashed. */
 export async function userByEditToken(db: Db, editToken: string): Promise<SessionUser | null> {
-  const [user] = await db.select().from(users).where(eq(users.editToken, editToken)).limit(1);
+  if (!editToken) return null;
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.editToken, hashToken(editToken)))
+    .limit(1);
   return user ?? null;
 }

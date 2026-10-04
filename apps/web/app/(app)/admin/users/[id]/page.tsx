@@ -1,7 +1,7 @@
 import { Badge, Button, Card, DataList, Flex, Heading, Link as RLink, Table, Text } from "@radix-ui/themes";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-
+import { fmtTime } from "@/lib/time";
 import { getUser } from "../../queries";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +41,7 @@ export default async function UserDetail({ params }: { params: Promise<{ id: str
           </DataList.Item>
           <DataList.Item>
             <DataList.Label>Created</DataList.Label>
-            <DataList.Value>{user.createdAt}</DataList.Value>
+            <DataList.Value>{fmtTime(user.createdAt)}</DataList.Value>
           </DataList.Item>
         </DataList.Root>
       </Card>

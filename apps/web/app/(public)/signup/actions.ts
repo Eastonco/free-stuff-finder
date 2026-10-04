@@ -1,14 +1,12 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
-
 import { eq, searches, users } from "@fsf/db";
 import { parseExcludeFilters } from "@fsf/engine";
 import { validateNotify, validateSearch } from "@fsf/engine/validate";
 import { redirect } from "next/navigation";
 
 import { db } from "@/db";
-import { safeEqual } from "@/lib/auth/core";
+import { hashToken, newToken, safeEqual } from "@/lib/auth/core";
 import { startSession } from "@/lib/auth/session";
 import { type FormResult, field } from "@/lib/form";
 
@@ -50,7 +48,6 @@ export async function signUp(_prev: FormResult<SignUpValues>, fd: FormData): Pro
   if (existing) errors.push("That alert destination already has an account — sign in instead.");
   if (errors.length) return { errors, values };
 
-  const now = new Date().toISOString();
   const userId = await db.transaction(async (tx) => {
     const [user] = await tx
       .insert(users)
@@ -58,8 +55,7 @@ export async function signUp(_prev: FormResult<SignUpValues>, fd: FormData): Pro
         name: values.name.trim(),
         notifyChannel: values.channel,
         notifyTarget: target,
-        editToken: randomBytes(16).toString("base64url"), // legacy column; links still sign in
-        createdAt: now,
+        editToken: hashToken(newToken()), // legacy column (unique, not null); nobody holds this token
       })
       .returning({ id: users.id });
     if (!user) throw new Error("user insert returned nothing");
@@ -69,7 +65,6 @@ export async function signUp(_prev: FormResult<SignUpValues>, fd: FormData): Pro
       preferencePrompt: values.prompt.trim(),
       excludeFilters: parseExcludeFilters(values.filters),
       active: true,
-      createdAt: now,
     });
     return user.id;
   });

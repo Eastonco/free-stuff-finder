@@ -1,9 +1,10 @@
 // The single source of truth for the Postgres schema. Change it here, then run
 // `pnpm --filter @fsf/db db:generate` to write a migration into ./migrations.
 //
-// This first version mirrors the schema SQLAlchemy's create_all produced (see
-// backend/models.py) exactly — down to constraint names, so later migrations
-// can alter them — and migration 0000 is a no-op baseline for the live DB. Note: all *_at / time_* columns are ISO-ish strings, not timestamps.
+// Migration 0000 is a baseline matching the schema the retired Python scraper's
+// SQLAlchemy create_all produced (constraint names included), so the live DB
+// adopted migrations without a rebuild. `listings` is that scraper's history,
+// kept as a frozen archive (copied into posts/matches by migration 0004).
 import {
   boolean,
   foreignKey,
@@ -19,13 +20,16 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
+const tstz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
+
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   name: varchar("name").notNull(),
   notifyChannel: varchar("notify_channel").notNull(), // 'ntfy' | 'sms' | 'discord'
   notifyTarget: varchar("notify_target").notNull(),
-  editToken: varchar("edit_token").notNull().unique("users_edit_token_key"), // unguessable; gates edits
-  createdAt: varchar("created_at").notNull(),
+  // sha256 of the pre-accounts edit link token; /profile/<token> still signs its owner in
+  editToken: varchar("edit_token").notNull().unique("users_edit_token_key"),
+  createdAt: tstz("created_at").notNull().defaultNow(),
   pickupPhone: text("pickup_phone"), // E.164, optional — used by the "GET" draft button
   pickupNote: text("pickup_note"), // free-text, woven into the AI pickup message
   isAdmin: boolean("is_admin").notNull().default(false), // sees /admin; grant with `pnpm --filter @fsf/db grant-admin`
@@ -40,7 +44,7 @@ export const searches = pgTable(
     preferencePrompt: varchar("preference_prompt").notNull(),
     excludeFilters: json("exclude_filters").$type<string[]>().notNull(),
     active: boolean("active").notNull(),
-    createdAt: varchar("created_at").notNull(),
+    createdAt: tstz("created_at").notNull().defaultNow(),
   },
   (t) => [foreignKey({ name: "searches_user_id_fkey", columns: [t.userId], foreignColumns: [users.id] })],
 );
@@ -67,31 +71,9 @@ export const listings = pgTable(
   ],
 );
 
-// Schema only — never populated. Dropped in the normalized-schema migration.
-export const reactions = pgTable(
-  "reactions",
-  {
-    id: serial("id").primaryKey(),
-    listingId: integer("listing_id").notNull(),
-    reaction: varchar("reaction").notNull(), // 'up' | 'down'
-    reactedAt: varchar("reacted_at").notNull(),
-  },
-  (t) => [foreignKey({ name: "reactions_listing_id_fkey", columns: [t.listingId], foreignColumns: [listings.id] })],
-);
-
-export const scraperStatus = pgTable("scraper_status", {
-  id: serial("id").primaryKey(),
-  lastCycleAt: varchar("last_cycle_at").notNull(),
-  cycleCount: integer("cycle_count").notNull(),
-  scraperEnabled: boolean("scraper_enabled").notNull().default(true), // admin remote kill-switch
-});
-
 // ---------------------------------------------------------------------------
-// TypeScript worker tables (additive — they live alongside the legacy tables
-// above while the Python scraper is still running). Real timestamptz from day one.
+// Worker tables. Real timestamptz throughout.
 // ---------------------------------------------------------------------------
-
-const tstz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
 /** One distinct search URL, scraped once per cycle no matter how many searches watch it. */
 export const searchUrls = pgTable("search_urls", {

@@ -4,13 +4,8 @@
 **/.next
 **/.turbo
 **/*.tsbuildinfo
-.venv
-venv
-**/__pycache__
-**/*.pyc
 *.log
 .playwright-mcp
 *.png
 ios-shortcut.jpg
-notes.md
 cloudflared

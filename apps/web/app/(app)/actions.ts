@@ -53,7 +53,7 @@ export async function saveSearch(_prev: FormResult<SearchValues>, fd: FormData):
   } else {
     // admins may create on someone's behalf; everyone else creates their own
     const ownerId = user.isAdmin && fd.get("userId") ? Number(fd.get("userId")) : user.id;
-    await db.insert(searches).values({ ...fields, userId: ownerId, createdAt: new Date().toISOString() });
+    await db.insert(searches).values({ ...fields, userId: ownerId });
   }
 
   revalidatePath("/searches");

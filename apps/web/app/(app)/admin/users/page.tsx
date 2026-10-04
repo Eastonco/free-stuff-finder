@@ -1,6 +1,6 @@
 import { Card, Flex, Heading, Link as RLink, Table, Text } from "@radix-ui/themes";
 import Link from "next/link";
-
+import { fmtTime } from "@/lib/time";
 import { listUsers } from "../queries";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +36,7 @@ export default async function UsersPage() {
                 </Table.Cell>
                 <Table.Cell>
                   <Text size="1" color="gray">
-                    {u.createdAt}
+                    {fmtTime(u.createdAt)}
                   </Text>
                 </Table.Cell>
               </Table.Row>

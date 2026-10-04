@@ -1,9 +1,0 @@
-# Direct dependencies only — pip resolves the rest. The old fully-frozen list
-# pinned 2023 transitive versions that conflict with modern anthropic.
-anthropic>=0.40
-python-dotenv>=1.0
-SQLAlchemy>=2.0.20
-psycopg2-binary>=2.9
-selenium>=4.18
-requests>=2.31
-twilio>=8.0
