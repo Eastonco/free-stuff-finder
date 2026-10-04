@@ -7,7 +7,7 @@ const config: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.join(__dirname, "../.."),
   // workspace packages ship TypeScript source, not built JS
-  transpilePackages: ["@fsf/db"],
+  transpilePackages: ["@fsf/db", "@fsf/engine"],
 };
 
 export default config;

@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/.next", "!**/.turbo", "!**/dist", "!**/*.css", "!**/meta/*.json"]
+    "includes": ["**", "!**/.next", "!**/.turbo", "!**/dist", "!**/*.css", "!**/meta/*.json", "!**/test/fixtures"]
   },
   "formatter": {
     "enabled": true,

@@ -13,6 +13,8 @@ A free-listings scraper + self-serve web app. A Python loop scrapes each user's 
 - **`@fsf/db` (`packages/db`) owns the schema.** `packages/db/src/schema.ts` (Drizzle) is the single source of truth; numbered SQL migrations live in `packages/db/migrations` and are applied by `pnpm --filter @fsf/db db:migrate` (the compose `migrate` service runs it before web starts). The web app imports tables from `@fsf/db`.
 - **Python is a legacy reader/writer** (being replaced by the TypeScript worker — see the refactor plan). `backend/models.py` still calls `create_all`, which only creates *missing* tables, so it is harmless against a migrated DB. The scraper writes `listings`, heartbeats `scraper_status`, and reads `users`/`searches`.
 
+- **`@fsf/engine` (`packages/engine`) is the TypeScript replacement for `backend/`'s logic**, as a pure library: Craigslist parsing over plain HTTP (no browser; see `docs/decisions/0001-http-not-browser.md`), the exclude filter, the Claude classifier, notifiers, and the shared form validation (`@fsf/engine/validate`, which the web app re-exports from `lib/validate.ts`). Functions take their dependencies (fetch, Anthropic client, clock) as arguments. It isn't wired to a worker yet; the Python scraper still runs in production.
+
 ### Consequences you must respect
 
 - **To change the schema:** edit `packages/db/src/schema.ts`, run `pnpm --filter @fsf/db db:generate --name <what>`, review the generated SQL, commit both. CI fails if `schema.ts` has changes with no migration. While `backend/` still exists, mirror column changes the scraper touches in `backend/models.py` too.
