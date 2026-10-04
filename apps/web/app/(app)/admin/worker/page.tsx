@@ -56,7 +56,7 @@ export default async function WorkerPage() {
       </Grid>
 
       <Card>
-        <Table.Root variant="ghost">
+        <Table.Root variant="ghost" className="stack-table">
           <Table.Header>
             <Table.Row>
               <Table.ColumnHeaderCell>URL</Table.ColumnHeaderCell>
@@ -69,13 +69,17 @@ export default async function WorkerPage() {
           <Table.Body>
             {urls.map(({ url, watchers }) => (
               <Table.Row key={url.id}>
-                <Table.Cell>
+                <Table.Cell data-primary>
                   <Text size="1" style={{ wordBreak: "break-all" }}>
                     {url.url}
                   </Text>
                 </Table.Cell>
-                <Table.Cell align="right">{watchers}</Table.Cell>
-                <Table.Cell align="right">{url.lastParsedCount ?? "—"}</Table.Cell>
+                <Table.Cell align="right" data-label="Watchers">
+                  {watchers}
+                </Table.Cell>
+                <Table.Cell align="right" data-label="Parsed">
+                  {url.lastParsedCount ?? "—"}
+                </Table.Cell>
                 <Table.Cell>
                   {url.lastError ? (
                     <Badge color="red" title={url.lastError}>
@@ -103,18 +107,20 @@ export default async function WorkerPage() {
           <Heading size="3" mb="2">
             Failed notifications
           </Heading>
-          <Table.Root variant="ghost">
+          <Table.Root variant="ghost" className="stack-table">
             <Table.Body>
               {failed.map((n) => (
                 <Table.Row key={n.id}>
-                  <Table.Cell>{n.title}</Table.Cell>
+                  <Table.Cell data-primary>{n.title}</Table.Cell>
                   <Table.Cell>{n.channel}</Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell data-full>
                     <Text size="1" color="red">
                       {n.error}
                     </Text>
                   </Table.Cell>
-                  <Table.Cell align="right">×{n.attempts}</Table.Cell>
+                  <Table.Cell align="right" data-end>
+                    ×{n.attempts}
+                  </Table.Cell>
                 </Table.Row>
               ))}
             </Table.Body>

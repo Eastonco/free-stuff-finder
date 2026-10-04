@@ -11,7 +11,7 @@ export default async function AccountPage() {
   return (
     <Flex direction="column" gap="4">
       <Heading size="6">Account</Heading>
-      <Card size="3">
+      <Card size={{ initial: "2", sm: "3" }}>
         <Flex direction="column" gap="4">
           <Text size="2" color="gray">
             Alerts and sign-in links both go to the destination below. Save any change, then send a test alert.

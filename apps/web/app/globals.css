@@ -1,8 +1,94 @@
-/* Radix Themes does the styling; this is only page-level base. */
+/* Radix Themes does the styling; this is only page-level base plus a few
+   phone-width tweaks Radix props can't express. Breakpoint matches Radix "sm". */
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
+}
+
+.mono-input {
+  font-family: var(--code-font-family);
+}
+
+@media (min-width: 768px) {
+  .mono-input {
+    font-size: var(--font-size-1);
+  }
+}
+
+@media (max-width: 767px) {
+  /* iOS Safari zooms the page when focusing an input under 16px. */
+  .rt-TextFieldRoot,
+  .rt-TextFieldInput,
+  .rt-TextAreaInput,
+  .rt-SelectTrigger {
+    font-size: 16px;
+  }
+
+  /* <Table.Root className="stack-table">: on phones each row becomes a small
+     card. Cells flow inline and wrap; per-cell data attributes shape it:
+       data-primary  first, full width (the row's title/link)
+       data-full     last, own full-width line (long text: reasons, wishlists)
+       data-end      at the end of the title line (row actions)
+       data-label="X" prefixes the value with a small "X" (bare numbers)
+     Cells with no content collapse. */
+  .stack-table thead {
+    display: none;
+  }
+  .stack-table table,
+  .stack-table tbody {
+    display: block;
+    height: auto; /* Radix sets height: 0, which only works as display: table */
+  }
+  .stack-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-2);
+    padding: var(--space-3) 0;
+    box-shadow: inset 0 -1px var(--gray-a5);
+  }
+  .stack-table tr:last-child {
+    box-shadow: none;
+  }
+  .stack-table td {
+    display: block;
+    padding: 0;
+    height: auto;
+    box-shadow: none;
+    text-align: left;
+  }
+  .stack-table td:empty {
+    display: none;
+  }
+  .stack-table td[data-primary] {
+    order: -1;
+    flex-basis: 100%;
+    font-weight: var(--font-weight-medium);
+  }
+  .stack-table td[data-full] {
+    order: 1;
+    flex-basis: 100%;
+  }
+  /* A row action sits at the end of the title line; the ::after flex item
+     (also order -1, but last in DOM) breaks the line after it. */
+  .stack-table tr:has(td[data-end]) td[data-primary] {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .stack-table td[data-end] {
+    order: -1;
+  }
+  .stack-table tr:has(td[data-end])::after {
+    content: "";
+    order: -1;
+    flex-basis: 100%;
+  }
+  .stack-table td[data-label]::before {
+    content: attr(data-label) " ";
+    color: var(--gray-11);
+    font-size: var(--font-size-1);
+  }
 }

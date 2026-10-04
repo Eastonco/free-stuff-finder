@@ -20,7 +20,7 @@ export default async function EditSearch({ params }: { params: Promise<{ id: str
         Edit search #{search.id}
         {owner ? ` (${owner.name})` : ""}
       </Heading>
-      <Card size="3">
+      <Card size={{ initial: "2", sm: "3" }}>
         <SearchForm
           action={saveSearch}
           searchId={search.id}

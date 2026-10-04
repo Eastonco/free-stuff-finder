@@ -11,7 +11,7 @@ export default async function SearchesPage() {
     <Flex direction="column" gap="4">
       <Heading size="6">Searches</Heading>
       <Card>
-        <Table.Root variant="ghost">
+        <Table.Root variant="ghost" className="stack-table">
           <Table.Header>
             <Table.Row>
               <Table.ColumnHeaderCell>Owner</Table.ColumnHeaderCell>
@@ -25,19 +25,21 @@ export default async function SearchesPage() {
           <Table.Body>
             {rows.map(({ search, owner, total, wants, last }) => (
               <Table.Row key={search.id}>
-                <Table.Cell>
+                <Table.Cell data-primary>
                   <RLink asChild>
                     <Link href={`/admin/searches/${search.id}`}>{owner ?? `#${search.userId}`}</Link>
                   </RLink>
                 </Table.Cell>
-                <Table.Cell>
+                <Table.Cell data-full>
                   <Text size="2">{search.preferencePrompt}</Text>
                 </Table.Cell>
                 <Table.Cell>
                   <Badge color={search.active ? "green" : "gray"}>{search.active ? "yes" : "no"}</Badge>
                 </Table.Cell>
-                <Table.Cell align="right">{total}</Table.Cell>
-                <Table.Cell align="right">
+                <Table.Cell align="right" data-label="Listings">
+                  {total}
+                </Table.Cell>
+                <Table.Cell align="right" data-label="Wanted">
                   <Text weight="bold">{wants}</Text>
                 </Table.Cell>
                 <Table.Cell>

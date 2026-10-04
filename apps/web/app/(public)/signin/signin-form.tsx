@@ -13,7 +13,7 @@ export function SignInForm({ expired }: { expired: boolean }) {
 
   if (state?.sent) {
     return (
-      <Card size="3">
+      <Card size={{ initial: "2", sm: "3" }}>
         <Flex direction="column" gap="3">
           <Heading size="4">Check your alerts</Heading>
           <Text>
@@ -29,7 +29,7 @@ export function SignInForm({ expired }: { expired: boolean }) {
   }
 
   return (
-    <Card size="3">
+    <Card size={{ initial: "2", sm: "3" }}>
       <form action={action}>
         <Flex direction="column" gap="4">
           <Heading size="4">Sign in</Heading>

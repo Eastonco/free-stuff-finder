@@ -11,7 +11,7 @@ export default async function UsersPage() {
     <Flex direction="column" gap="4">
       <Heading size="6">Users</Heading>
       <Card>
-        <Table.Root variant="ghost">
+        <Table.Root variant="ghost" className="stack-table">
           <Table.Header>
             <Table.Row>
               <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
@@ -23,14 +23,16 @@ export default async function UsersPage() {
           <Table.Body>
             {rows.map((u) => (
               <Table.Row key={u.id}>
-                <Table.Cell>
+                <Table.Cell data-primary>
                   <RLink asChild>
                     <Link href={`/admin/users/${u.id}`}>{u.name}</Link>
                   </RLink>
                 </Table.Cell>
                 <Table.Cell>{u.notifyChannel}</Table.Cell>
-                <Table.Cell>
-                  <Text size="2">{u.notifyTarget}</Text>
+                <Table.Cell data-full>
+                  <Text size="2" style={{ wordBreak: "break-all" }}>
+                    {u.notifyTarget}
+                  </Text>
                 </Table.Cell>
                 <Table.Cell>
                   <Text size="1" color="gray">

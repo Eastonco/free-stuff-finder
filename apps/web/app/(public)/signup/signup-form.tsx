@@ -18,7 +18,7 @@ export function SignUpForm() {
   const v = state?.values ?? EMPTY;
 
   return (
-    <Card size="3">
+    <Card size={{ initial: "2", sm: "3" }}>
       <form action={action} key={JSON.stringify(v)}>
         <Flex direction="column" gap="4">
           <Heading size="4">Create an account</Heading>

@@ -8,7 +8,7 @@ export default function NewSearch() {
   return (
     <Flex direction="column" gap="4">
       <Heading size="6">New search</Heading>
-      <Card size="3">
+      <Card size={{ initial: "2", sm: "3" }}>
         <SearchForm action={saveSearch} defaults={EMPTY_SEARCH} submitLabel="Create search" cancelHref="/searches" />
       </Card>
     </Flex>

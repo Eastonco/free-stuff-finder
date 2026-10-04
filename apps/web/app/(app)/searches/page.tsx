@@ -29,7 +29,7 @@ export default async function MySearches({ searchParams }: { searchParams: Promi
       ) : null}
 
       {rows.length === 0 ? (
-        <Card size="3">
+        <Card size={{ initial: "2", sm: "3" }}>
           <Flex direction="column" gap="3" align="start">
             <Text>No searches yet. Add one and describe what you&apos;re after.</Text>
             <Button asChild>
@@ -69,7 +69,7 @@ export default async function MySearches({ searchParams }: { searchParams: Promi
                     {wants} matches
                   </Badge>
                 </Flex>
-                <Flex align="center" justify="between" mt="auto">
+                <Flex align="center" justify="between" gap="2" wrap="wrap" mt="auto">
                   <ActiveToggle searchId={search.id} active={search.active} />
                   <Flex align="center" gap="3">
                     {last ? (
