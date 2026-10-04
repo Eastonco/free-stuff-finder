@@ -72,6 +72,9 @@ importers:
       '@fsf/engine':
         specifier: workspace:*
         version: link:../../packages/engine
+      '@openrouter/sdk':
+        specifier: ^1.4.21
+        version: 1.4.21
       pg-boss:
         specifier: ^12.36.0
         version: 12.36.0(@opentelemetry/api@1.9.1)
@@ -127,6 +130,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.131.0
         version: 0.131.0(zod@4.6.5)
+      '@openrouter/sdk':
+        specifier: ^1.4.21
+        version: 1.4.21
       cheerio:
         specifier: ^1.2.0
         version: 1.2.0
@@ -918,6 +924,9 @@ packages:
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
+
+  '@openrouter/sdk@1.4.21':
+    resolution: {integrity: sha512-fWaxZ6NV7/qfocMfZfwb0cAjMLTh69B7S/H2b+Mb2dJzS2eZTTGTCb4egHEpB60SRcovUMv/ZqKW2DFU8tpExw==}
 
   '@opentelemetry/api@1.9.1':
     resolution: {integrity: sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==}
@@ -3105,6 +3114,10 @@ snapshots:
 
   '@next/swc-win32-x64-msvc@15.5.27':
     optional: true
+
+  '@openrouter/sdk@1.4.21':
+    dependencies:
+      zod: 4.6.5
 
   '@opentelemetry/api@1.9.1': {}
 
