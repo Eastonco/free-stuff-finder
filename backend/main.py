@@ -23,6 +23,17 @@ load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
+# Present as a normal desktop Firefox-on-Windows user instead of headless
+# Firefox-on-Linux. Kept as real Firefox (not Chrome) so the UA matches the
+# actual Gecko engine — consistent if the site fingerprints beyond the header.
+# ponytail: one stable string beats per-request rotation (a single IP cycling
+# UAs looks *more* botty). Bump the version when it ages out, or set
+# SCRAPER_USER_AGENT to override.
+USER_AGENT = os.getenv(
+    "SCRAPER_USER_AGENT",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0",
+)
+
 engine = get_engine_from_env()
 init_db(engine)
 
@@ -30,6 +41,7 @@ init_db(engine)
 def browser_setup():
     firefox_option = Options()
     firefox_option.add_argument('--headless')
+    firefox_option.set_preference('general.useragent.override', USER_AGENT)
     # In Docker we point at the standalone Selenium service; bare-metal (Pi) uses
     # a local geckodriver. SELENIUM_REMOTE_URL picks the path.
     remote = os.getenv("SELENIUM_REMOTE_URL")
@@ -42,7 +54,7 @@ def browser_setup():
 
 
 def _first_image(el):
-    # ponytail: Craigslist gallery cards lazy-load images; src is usually set
+    # ponytail: gallery cards lazy-load images; src is usually set
     # once the card is in view. If thumbnails come back empty, this is where to
     # scroll the card into view or read a data-* attribute instead.
     try:
@@ -153,7 +165,11 @@ def main():
     while True:
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with Session(engine) as session:
-            record_cycle(session)  # heartbeat for the admin dashboard
+            status = record_cycle(session)  # heartbeat for the admin dashboard
+            if not status.scraper_enabled:
+                printInfo('Scraper disabled via admin panel — skipping cycle.')
+                sleep_random(45, 90)
+                continue
             searches = session.scalars(select(Search).where(Search.active.is_(True))).all()
             if not searches:
                 printInfo('No active searches. Add one via the web app.')

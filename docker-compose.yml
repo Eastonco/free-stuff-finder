@@ -1,4 +1,6 @@
 # Runs the whole stack anywhere: `docker compose up --build`
+# Local development with live reload of the web app:
+#   docker compose -f docker-compose.yml -f compose.dev.yml watch
 # Secrets (ANTHROPIC_API_KEY, INVITE_CODE, Twilio) come from .env via env_file.
 # DB/Selenium wiring is set here so it works inside the compose network.
 
@@ -30,10 +32,31 @@ services:
       timeout: 3s
       retries: 12
 
+  # Applies Drizzle migrations (packages/db/migrations) then exits; web waits
+  # for it. Safe on the legacy create_all DB — it baselines instead of re-creating.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: migrate
+    environment:
+      DB_HOST: db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: craigslist
+      DB_PORT: 5432
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
   web:
-    # Next.js app (replaces the old FastAPI/uvicorn server). Talks to the db
+    # Next.js app (apps/web). Talks to the db
     # service directly; the Postgres schema is the only contract with the scraper.
-    build: ./web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: runner # production standalone build; compose.dev.yml switches to the dev server
     env_file: .env
     environment:
       DB_HOST: db
@@ -44,8 +67,27 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+  # TypeScript worker (apps/worker): replaces the Python scraper below.
+  # Shadow mode by default — it classifies and records everything but sends
+  # nothing until WORKER_NOTIFY_DRY_RUN=0. No Selenium needed (plain HTTP).
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: craigslist
+      DB_PORT: 5432
+      NOTIFY_DRY_RUN: ${WORKER_NOTIFY_DRY_RUN:-1}
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
   scraper:
     build: .

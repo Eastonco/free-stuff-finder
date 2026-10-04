@@ -10,7 +10,7 @@ Config lives in **Postgres**, not JSON files: the web form writes it, the scrape
 loop reads everyone's active searches each cycle.
 
 ```
-cloudflared (cl.yourdomain.com) ──► Next.js web app (./web) ─────┐
+cloudflared (freestuff.yourdomain.com) ──► Next.js web app (apps/web) ─────┐
                                                                  ├─► Postgres
         scraper loop (main.py) ──────────────────────────────────┘   users / searches
               │                                                       listings / reactions
@@ -90,16 +90,16 @@ flooded — alerts start on the next cycle.
 
 **2. The web app** (so you + friends can self-serve)
 ```sh
-cd web
-npm install
-npm run db:pull   # generate db/schema.ts from the live Postgres (one-time / after schema changes)
-npm run dev       # or: npm run build && npm run start  (both serve on :8000)
+# from the repo root; needs Node 22 (see .nvmrc) and pnpm
+pnpm install
+pnpm --filter @fsf/db db:migrate # apply schema migrations (packages/db/migrations)
+pnpm dev          # or: pnpm build && pnpm --filter @fsf/web start  (both serve on :8000)
 ```
-The web app is a Next.js project in `./web`. It talks to Postgres directly using
+The web app is a Next.js project in `apps/web`. It talks to Postgres directly using
 the same `DB_*` env vars as the scraper.
 
 ## (Optional) Expose the web app with a Cloudflare Tunnel
-Gives you a stable public URL (e.g. `cl.yourdomain.com`) with no port-forwarding.
+Gives you a stable public URL (e.g. `freestuff.yourdomain.com`) with no port-forwarding.
 **Entirely optional** — skip it and use `localhost:8000`. The tunnel runs as a
 Compose service behind the `tunnel` profile, so it's off unless you ask for it.
 
@@ -107,7 +107,7 @@ One-time setup (needs a Cloudflare account + a domain on it):
 ```sh
 cloudflared tunnel login                                  # browser auth → writes cert.pem
 cloudflared tunnel create freestuff                       # writes ~/.cloudflared/<UUID>.json
-cloudflared tunnel route dns freestuff cl.yourdomain.com
+cloudflared tunnel route dns freestuff freestuff.yourdomain.com
 cp ~/.cloudflared/<UUID>.json ./cloudflared/
 cp cloudflared/config.example.yml cloudflared/config.yml  # fill in UUID + hostname
 ```

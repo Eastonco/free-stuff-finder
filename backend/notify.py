@@ -2,7 +2,7 @@
 
 ntfy (default): free push, no account needed — the user just subscribes to a
 topic in the ntfy app. We use ntfy's JSON publishing endpoint (not headers)
-because Craigslist titles carry unicode/emoji and ntfy headers must be ASCII.
+because listing titles carry unicode/emoji and ntfy headers must be ASCII.
 
 sms: the original Twilio path, kept as an option.
 

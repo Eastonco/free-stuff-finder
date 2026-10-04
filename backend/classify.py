@@ -1,4 +1,4 @@
-"""AI gate: does this free Craigslist item match what the user wants?
+"""AI gate: does this free item match what the user wants?
 
 One function, behind a thin seam so the model stays swappable. Free-items-only,
 so there's no price to reason about — we classify on title + the gallery
@@ -15,7 +15,7 @@ from anthropic import Anthropic
 MODEL = "claude-haiku-4-5"
 
 SYSTEM = (
-    "You filter free Craigslist items for one person. Given what they're looking "
+    "You filter free items for one person. Given what they're looking "
     "for and a single item (title + photo), decide whether it genuinely matches. "
     "Be strict — only say 'want' if it actually fits; junk, wrong-category, and "
     "vague matches are 'skip'. Reply with ONLY a JSON object, no prose:\n"

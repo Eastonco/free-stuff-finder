@@ -25,7 +25,7 @@ def printSuccess(*args):
 
 def welcome_message():
     print(f'''
-    {bcolors.BOLD}{bcolors.HEADER}Welcome to the craigslist free alert bot  {bcolors.ENDC}
-    Every 3 minutes this script will query cl for free items and then print the new items to the terminal and send you a text and/or email.
+    {bcolors.BOLD}{bcolors.HEADER}Welcome to the free alert bot  {bcolors.ENDC}
+    Every 3 minutes this script will query for free items and then print the new items to the terminal and send you a text and/or email.
     cheers!
     ''')
