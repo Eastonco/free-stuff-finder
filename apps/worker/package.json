@@ -11,7 +11,6 @@
     "eval:classifier": "tsx --env-file-if-exists=../../.env scripts/eval-classifier.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.131.0",
     "@fsf/db": "workspace:*",
     "@fsf/engine": "workspace:*",
     "@openrouter/sdk": "^1.4.21",

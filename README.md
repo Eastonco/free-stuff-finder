@@ -48,7 +48,7 @@ Copy `.env.example` to `.env` and fill it in (`.env` is gitignored):
 ```sh
 cp .env.example .env
 ```
-At minimum set `ANTHROPIC_API_KEY`, `INVITE_CODE`, `ADMIN_PASSWORD`, and the `DB_*` values.
+At minimum set `OPENROUTER_API_KEY`, `INVITE_CODE`, `ADMIN_PASSWORD`, and the `DB_*` values. (`ANTHROPIC_API_KEY` is only needed while the legacy Python scraper runs.)
 
 ## Admin dashboard
 `GET /admin` (e.g. http://localhost:8000/admin) shows every profile, their notify
@@ -63,7 +63,7 @@ Brings up Postgres, a headless Firefox (Selenium), the web app, and the scraper
 loop together. Only prerequisite is Docker + a filled-in `.env`.
 
 ```sh
-cp .env.example .env        # set ANTHROPIC_API_KEY + INVITE_CODE
+cp .env.example .env        # set OPENROUTER_API_KEY + INVITE_CODE
 docker compose up --build
 ```
 

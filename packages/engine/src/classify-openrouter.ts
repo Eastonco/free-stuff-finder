@@ -9,9 +9,9 @@
 // Same fail-open contract as createClassifier: errors return 'want' with
 // `error` set, and the worker decides about retries and alert suppression.
 import type { OpenRouter } from "@openrouter/sdk";
-import { HTTPClientError, OpenRouterError, RequestAbortedError } from "@openrouter/sdk/models/errors";
 
 import type { Classifier, ClassifyInput } from "./classify";
+import { errorKind, isRetryableOpenRouterError } from "./openrouter-errors";
 import type { Verdict } from "./types";
 
 export const OPENROUTER_CLASSIFIER_MODEL = "~typesafe/jev-latest";
@@ -49,12 +49,12 @@ export function createOpenRouterClassifier(opts: {
       const score = Math.round(p * 100);
       return { label: p >= wantThreshold ? "want" : "skip", score, reason: `${score}% match (jev)` };
     } catch (err) {
-      const kind = err instanceof Error ? err.constructor.name : typeof err;
+      const kind = errorKind(err);
       return {
         label: "want",
         score: 0,
         reason: `classification unavailable (${kind})`,
-        error: { kind, retryable: isRetryable(err) },
+        error: { kind, retryable: isRetryableOpenRouterError(err) },
       };
     }
   };
@@ -69,10 +69,4 @@ function stateFor(i: ClassifyInput) {
       ...(i.imageUrl ? { image_url: i.imageUrl } : {}),
     },
   };
-}
-
-function isRetryable(err: unknown): boolean {
-  if (err instanceof OpenRouterError) return err.statusCode === 408 || err.statusCode === 429 || err.statusCode >= 500;
-  // connection drops and timeouts; an explicit abort is ours, not theirs
-  return err instanceof HTTPClientError && !(err instanceof RequestAbortedError);
 }

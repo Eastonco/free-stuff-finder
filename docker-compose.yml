@@ -1,7 +1,7 @@
 # Runs the whole stack anywhere: `docker compose up --build`
 # Local development with live reload of the web app:
 #   docker compose -f docker-compose.yml -f compose.dev.yml watch
-# Secrets (ANTHROPIC_API_KEY, INVITE_CODE, Twilio) come from .env via env_file.
+# Secrets (OPENROUTER_API_KEY, INVITE_CODE, Twilio; ANTHROPIC_API_KEY for the legacy scraper) come from .env via env_file.
 # DB/Selenium wiring is set here so it works inside the compose network.
 
 services:

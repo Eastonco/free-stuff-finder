@@ -3,10 +3,9 @@
 //   pnpm --filter @fsf/worker eval:classifier [sampleSize=150]
 //
 // Read-only against the DB_* database. For each sampled (search, post) it
-// fetches the post page (description), then asks jev (OpenRouter) and Claude
-// Haiku the same question on the same inputs. Python's historical label is a
+// fetches the post page (description), then asks jev and Claude Haiku (both
+// via OpenRouter) the same question on the same inputs. Python's historical label is a
 // reference, not ground truth: it saw title + photo only.
-import Anthropic from "@anthropic-ai/sdk";
 import { and, createDb, desc, eq, inArray, listings, not, searches, sql } from "@fsf/db";
 import {
   createClassifier,
@@ -64,18 +63,15 @@ const jev = createOpenRouterClassifier({
       },
     },
   } as unknown as Pick<OpenRouter, "alpha">,
-  model: process.env.OPENROUTER_MODEL || undefined,
 });
-const haiku = process.env.ANTHROPIC_API_KEY
-  ? createClassifier({ client: new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, maxRetries: 2 }) })
-  : null;
+const haiku = createClassifier({ client: orClient });
 
 const throttle = createHostThrottle(1500);
 const details = new Map<string, { description: string; imageUrl: string | null; live: boolean }>();
-type Row = (typeof rows)[number] & { live: boolean; jev: Verdict; haiku: Verdict | null };
+type Row = (typeof rows)[number] & { live: boolean; jev: Verdict; haiku: Verdict };
 const results: Row[] = [];
 
-console.error(`evaluating ${rows.length} posts (${haiku ? "jev + haiku" : "jev only"})…`);
+console.error(`evaluating ${rows.length} posts with jev and haiku…`);
 for (const [i, r] of rows.entries()) {
   if (!details.has(r.link)) {
     await throttle(r.link);
@@ -92,7 +88,7 @@ for (const [i, r] of rows.entries()) {
   }
   const d = details.get(r.link) ?? { description: "", imageUrl: r.image, live: false };
   const input = { title: r.title, description: d.description, imageUrl: d.imageUrl, preference: r.preference };
-  const [jv, hv] = await Promise.all([jev(input), haiku ? haiku(input) : Promise.resolve(null)]);
+  const [jv, hv] = await Promise.all([jev(input), haiku(input)]);
   results.push({ ...r, live: d.live, jev: jv, haiku: hv });
   if ((i + 1) % 25 === 0) console.error(`  ${i + 1}/${rows.length}`);
 }
@@ -100,50 +96,34 @@ await conn.end();
 
 // ---- report ----
 const pct = (a: number, b: number) => (b ? `${((100 * a) / b).toFixed(0)}%` : "—");
-const ok = results.filter((r) => !r.jev.error && !r.haiku?.error);
-const agree = (f: (r: Row) => string | undefined, g: (r: Row) => string | undefined, set = ok) =>
+const ok = results.filter((r) => !r.jev.error && !r.haiku.error);
+const agree = (f: (r: Row) => string | null, g: (r: Row) => string | null, set = ok) =>
   `${pct(set.filter((r) => f(r) === g(r)).length, set.length)} (n=${set.length})`;
-const jevLabelAt = (r: Row, t: number) => (r.jev.score / 100 >= t ? "want" : "skip");
+const jevAt = (t: number) => (r: Row) => (r.jev.score / 100 >= t ? "want" : "skip");
+const python = (r: Row) => r.label;
+const haikuLabel = (r: Row) => r.haiku.label;
+const jevLabel = (r: Row) => r.jev.label;
+const errors = (k: "jev" | "haiku") => results.filter((r) => r[k].error).length;
 
 console.log(
-  `\nposts: ${results.length}, live pages: ${results.filter((r) => r.live).length}, errors: jev ${results.filter((r) => r.jev.error).length}, haiku ${results.filter((r) => r.haiku?.error).length}`,
+  `\nposts: ${results.length}, live pages: ${results.filter((r) => r.live).length}, errors: jev ${errors("jev")}, haiku ${errors("haiku")}`,
 );
-console.log("\nagreement (threshold 0.5):");
+console.log("\nagreement (jev threshold 0.5):");
+console.log(`  jev   vs python(historical): ${agree(jevLabel, python)}`);
+console.log(`  haiku vs python(historical): ${agree(haikuLabel, python)}`);
+console.log(`  jev   vs haiku (same input): ${agree(jevLabel, haikuLabel)}`);
 console.log(
-  `  jev   vs python(historical): ${agree(
-    (r) => r.jev.label,
-    (r) => r.label ?? undefined,
+  `  jev   vs haiku, live pages only: ${agree(
+    jevLabel,
+    haikuLabel,
+    ok.filter((r) => r.live),
   )}`,
 );
-if (haiku) {
-  console.log(
-    `  haiku vs python(historical): ${agree(
-      (r) => r.haiku?.label,
-      (r) => r.label ?? undefined,
-    )}`,
-  );
-  console.log(
-    `  jev   vs haiku (same input): ${agree(
-      (r) => r.jev.label,
-      (r) => r.haiku?.label,
-    )}`,
-  );
-}
-const live = ok.filter((r) => r.live);
-if (haiku)
-  console.log(
-    `  jev   vs haiku, live pages only: ${agree(
-      (r) => r.jev.label,
-      (r) => r.haiku?.label,
-      live,
-    )}`,
-  );
 
-console.log("\njev threshold sweep (agreement with haiku if available, else python):");
+console.log("\njev threshold sweep (agreement with haiku):");
 for (const t of [0.3, 0.4, 0.5, 0.6, 0.7]) {
-  const ref = (r: Row) => (haiku ? r.haiku?.label : (r.label ?? undefined));
-  const wants = ok.filter((r) => jevLabelAt(r, t) === "want").length;
-  console.log(`  ${t.toFixed(1)}: agree ${agree((r) => jevLabelAt(r, t), ref)}, wants ${pct(wants, ok.length)}`);
+  const wants = ok.filter((r) => jevAt(t)(r) === "want").length;
+  console.log(`  ${t.toFixed(1)}: agree ${agree(jevAt(t), haikuLabel)}, wants ${pct(wants, ok.length)}`);
 }
 
 const ms = jevStats.map((s) => s.ms).sort((a, b) => a - b);
@@ -154,8 +134,8 @@ console.log(
 );
 
 console.log("\njev vs haiku disagreements:");
-for (const r of ok.filter((r) => haiku && r.jev.label !== r.haiku?.label).slice(0, 15)) {
+for (const r of ok.filter((r) => r.jev.label !== r.haiku.label).slice(0, 15)) {
   console.log(
-    `  [s${r.searchId}] jev ${r.jev.label} ${r.jev.score} | haiku ${r.haiku?.label} ${r.haiku?.score} "${r.haiku?.reason}" | ${r.title.slice(0, 50)}`,
+    `  [s${r.searchId}] jev ${r.jev.label} ${r.jev.score} | haiku ${r.haiku.label} ${r.haiku.score} "${r.haiku.reason}" | ${r.title.slice(0, 50)}`,
   );
 }

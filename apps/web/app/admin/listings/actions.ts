@@ -1,7 +1,8 @@
 "use server";
 
-import Anthropic from "@anthropic-ai/sdk";
-import { CLASSIFIER_MODEL, fetchHtml, parseDetailPage } from "@fsf/engine";
+import { CLASSIFIER_MODEL, chatText, fetchHtml, parseDetailPage } from "@fsf/engine";
+import { OpenRouter } from "@openrouter/sdk";
+import { OpenRouterError } from "@openrouter/sdk/models/errors";
 
 import { getListing } from "../queries";
 import { buildPrompt } from "./draft";
@@ -19,8 +20,8 @@ async function fetchDescription(link: string): Promise<string> {
 // Generate a ready-to-send pickup message for one listing, using the listing
 // owner's pickup phone/note. Throws on missing key or LLM failure.
 export async function draftPickupMessage(listingId: number): Promise<string> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set on the server.");
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set on the server.");
 
   const data = await getListing(listingId);
   if (!data) throw new Error("Listing not found.");
@@ -35,21 +36,21 @@ export async function draftPickupMessage(listingId: number): Promise<string> {
     description: await fetchDescription(listing.link),
   });
 
-  let res: Anthropic.Message;
+  let text: string;
   try {
-    res = await new Anthropic({ apiKey, timeout: 30_000 }).messages.create({
-      model: CLASSIFIER_MODEL,
-      max_tokens: 400,
-      messages: [{ role: "user", content: prompt }],
+    const res = await new OpenRouter({ apiKey, timeoutMs: 30_000 }).chat.send({
+      chatRequest: {
+        model: CLASSIFIER_MODEL,
+        maxTokens: 400,
+        stream: false,
+        messages: [{ role: "user", content: prompt }],
+      },
     });
+    text = "choices" in res ? chatText(res.choices[0]?.message.content).trim() : "";
   } catch (err) {
-    const status = err instanceof Anthropic.APIError ? ` (${err.status})` : "";
+    const status = err instanceof OpenRouterError ? ` (${err.statusCode})` : "";
     throw new Error(`AI request failed${status}. ${err instanceof Error ? err.message.slice(0, 200) : ""}`);
   }
-  const text = res.content
-    .flatMap((b) => (b.type === "text" ? [b.text] : []))
-    .join("")
-    .trim();
   if (!text) throw new Error("AI returned an empty message.");
   return text;
 }

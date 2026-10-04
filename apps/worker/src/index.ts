@@ -3,7 +3,6 @@
 //
 //   schedule (cron, every minute) → scrape-url (per distinct URL)
 //     → match (per new search×post pair) → notify (per 'want')
-import Anthropic from "@anthropic-ai/sdk";
 import { createDb, dbConfigFromEnv } from "@fsf/db";
 import { runMigrations } from "@fsf/db/migrate";
 import {
@@ -31,14 +30,15 @@ const config = loadConfig();
 const { db, sql } = createDb({ max: config.SCRAPE_CONCURRENCY + config.MATCH_CONCURRENCY + 2 });
 await runMigrations(db);
 
+const openrouter = new OpenRouter({ apiKey: config.OPENROUTER_API_KEY, timeoutMs: 30_000 });
 const classify: Classifier =
-  config.CLASSIFIER === "openrouter"
+  config.CLASSIFIER === "jev"
     ? createOpenRouterClassifier({
-        client: new OpenRouter({ apiKey: config.OPENROUTER_API_KEY, timeoutMs: 30_000 }),
-        model: config.OPENROUTER_MODEL || undefined,
-        wantThreshold: config.OPENROUTER_WANT_THRESHOLD,
+        client: openrouter,
+        model: config.CLASSIFIER_MODEL || undefined,
+        wantThreshold: config.JEV_WANT_THRESHOLD,
       })
-    : createClassifier({ client: new Anthropic({ apiKey: config.ANTHROPIC_API_KEY, maxRetries: 2, timeout: 30_000 }) });
+    : createClassifier({ client: openrouter, model: config.CLASSIFIER_MODEL || undefined });
 
 const throttle = createHostThrottle(config.HOST_MIN_INTERVAL_MS);
 const userAgent = config.SCRAPER_USER_AGENT || DEFAULT_USER_AGENT;
