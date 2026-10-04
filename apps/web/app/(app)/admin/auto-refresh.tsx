@@ -6,9 +6,8 @@ import { useEffect, useState } from "react";
 
 // Ticks the "last cycle Ns ago" counter every second so it counts up live between
 // the 10s server polls. Server still owns the source of truth (lastCycleAt, cycleCount).
-// Backend stores naive timestamps (datetime.now().isoformat(), no offset). The container
-// runs UTC, so treat an offset-less string as UTC. ponytail: assumes UTC container; if the
-// backend ever runs in a non-UTC TZ, fix _now() in backend/models.py to emit an offset.
+// The worker's heartbeat arrives as an ISO string with an offset; an offset-less
+// string is treated as UTC.
 function parseTs(s: string) {
   return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : `${s}Z`).getTime();
 }
@@ -38,7 +37,8 @@ export function HeartbeatBadge({ lastCycleAt, cycleCount }: { lastCycleAt: strin
     );
   return (
     <Text size="2" color="gray">
-      <Badge color="red">stale</Badge> last cycle {lastCycleAt} · {cycleCount} cycles
+      <Badge color="red">stale</Badge> last cycle {new Date(parseTs(lastCycleAt)).toLocaleString()} · {cycleCount}{" "}
+      cycles
     </Text>
   );
 }

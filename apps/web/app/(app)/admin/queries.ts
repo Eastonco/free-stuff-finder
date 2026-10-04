@@ -1,16 +1,18 @@
 // Shared admin data access. Server-only — imported by admin pages (all force-dynamic).
+// Everything reads the worker's tables (matches + posts). Python's `listings` is a
+// frozen archive since the cutover (copied in by migration 0004).
 // Per-search stats come from one grouped query per page, never one query per search.
 import {
+  and,
   count,
   desc,
   eq,
   inArray,
-  listings,
   matches,
   max,
+  ne,
   notifications,
   posts,
-  scraperStatus,
   searches,
   searchUrls,
   searchWatches,
@@ -20,33 +22,39 @@ import {
 } from "@fsf/db";
 
 import { db } from "@/db";
+import { fmtTime } from "@/lib/time";
 
 export type Search = typeof searches.$inferSelect;
-export type Listing = typeof listings.$inferSelect;
 export type User = typeof users.$inferSelect;
 
+/** The worker's heartbeat and kill-switch, in the shape the Overview header uses. */
 export async function getStatus() {
-  const [status] = await db.select().from(scraperStatus).limit(1);
-  return status ?? null;
+  const [status] = await db.select().from(workerStatus).limit(1);
+  if (!status) return null;
+  return {
+    lastCycleAt: status.lastTickAt?.toISOString() ?? null,
+    cycleCount: status.tickCount,
+    scraperEnabled: status.enabled,
+  };
 }
 
 type SearchStats = { total: number; wants: number; last: string | null };
 const EMPTY_STATS: SearchStats = { total: 0, wants: 0, last: null };
 
-// Per-search aggregates (total listings, wanted, last scrape) for many searches in one query.
+// Per-search aggregates (posts seen, wanted, last activity) for many searches in one query.
 export async function statsBySearch(searchIds: number[]): Promise<Map<number, SearchStats>> {
   if (!searchIds.length) return new Map();
   const rows = await db
     .select({
-      searchId: listings.searchId,
+      searchId: matches.searchId,
       total: count(),
-      wants: sql<number>`count(*) filter (where ${listings.aiLabel} = 'want')`.mapWith(Number),
-      last: max(listings.timeScraped),
+      wants: sql<number>`count(*) filter (where ${matches.label} = 'want')`.mapWith(Number),
+      last: max(matches.createdAt),
     })
-    .from(listings)
-    .where(inArray(listings.searchId, searchIds))
-    .groupBy(listings.searchId);
-  return new Map(rows.map(({ searchId, ...stats }) => [searchId, stats]));
+    .from(matches)
+    .where(inArray(matches.searchId, searchIds))
+    .groupBy(matches.searchId);
+  return new Map(rows.map(({ searchId, last, ...stats }) => [searchId, { ...stats, last: fmtTime(last) || null }]));
 }
 
 export async function searchStats(searchId: number): Promise<SearchStats> {
@@ -58,7 +66,7 @@ export async function getOverview() {
     await Promise.all([
       db.select({ users: count() }).from(users),
       db.select({ searches: count() }).from(searches),
-      db.select({ label: listings.aiLabel, n: count() }).from(listings).groupBy(listings.aiLabel),
+      db.select({ label: matches.label, n: count() }).from(matches).groupBy(matches.label),
     ]);
   const labels = Object.fromEntries(labelRows.map((r) => [r.label ?? "baseline", r.n]));
 
@@ -72,25 +80,30 @@ export async function getOverview() {
   };
 }
 
-// Recent listings joined to their owning user's name (listing → search.userId → user).
+// One row per (search, post) verdict, newest first, with its owner's name.
+// Field names predate the cutover (they mirrored `listings`); the id is the match id.
+const listingRow = {
+  id: matches.id,
+  title: posts.title,
+  link: posts.link,
+  aiLabel: matches.label,
+  aiScore: matches.score,
+  aiReason: matches.reason,
+  at: matches.createdAt,
+};
+
 export async function recentListings(limit = 20, offset = 0) {
-  return db
-    .select({
-      id: listings.id,
-      title: listings.title,
-      link: listings.link,
-      aiLabel: listings.aiLabel,
-      aiScore: listings.aiScore,
-      aiReason: listings.aiReason,
-      timeScraped: listings.timeScraped,
-      owner: users.name,
-    })
-    .from(listings)
-    .leftJoin(searches, eq(listings.searchId, searches.id))
+  const rows = await db
+    .select({ ...listingRow, owner: users.name })
+    .from(matches)
+    .innerJoin(posts, eq(posts.id, matches.postId))
+    .leftJoin(searches, eq(matches.searchId, searches.id))
     .leftJoin(users, eq(searches.userId, users.id))
-    .orderBy(desc(listings.id))
+    .where(ne(matches.status, "baseline"))
+    .orderBy(desc(matches.createdAt), desc(matches.id))
     .limit(limit)
     .offset(offset);
+  return rows.map(({ at, ...r }) => ({ ...r, timeScraped: fmtTime(at) }));
 }
 
 // --- list pages ---
@@ -101,7 +114,8 @@ export async function listSearches() {
     .from(searches)
     .leftJoin(users, eq(searches.userId, users.id))
     .orderBy(desc(searches.id));
-  return Promise.all(rows.map(async ({ search, owner }) => ({ search, owner, ...(await searchStats(search.id)) })));
+  const stats = await statsBySearch(rows.map((r) => r.search.id));
+  return rows.map(({ search, owner }) => ({ search, owner, ...(stats.get(search.id) ?? EMPTY_STATS) }));
 }
 
 export async function listUsers() {
@@ -118,18 +132,51 @@ export async function getSearch(id: number) {
   const [search] = await db.select().from(searches).where(eq(searches.id, id)).limit(1);
   if (!search) return null;
   const [owner] = await db.select().from(users).where(eq(users.id, search.userId)).limit(1);
-  const rows = await db.select().from(listings).where(eq(listings.searchId, id)).orderBy(desc(listings.id)).limit(100);
-  return { search, owner: owner ?? null, listings: rows, stats: await searchStats(id) };
+  const rows = await db
+    .select(listingRow)
+    .from(matches)
+    .innerJoin(posts, eq(posts.id, matches.postId))
+    .where(and(eq(matches.searchId, id), ne(matches.status, "baseline")))
+    .orderBy(desc(matches.createdAt), desc(matches.id))
+    .limit(100);
+  return {
+    search,
+    owner: owner ?? null,
+    listings: rows.map(({ at, ...r }) => ({ ...r, timeScraped: fmtTime(at) })),
+    stats: await searchStats(id),
+  };
 }
 
+/** One verdict (match) with its post, search and owner. */
 export async function getListing(id: number) {
-  const [listing] = await db.select().from(listings).where(eq(listings.id, id)).limit(1);
-  if (!listing) return null;
-  const [search] = await db.select().from(searches).where(eq(searches.id, listing.searchId)).limit(1);
+  const [row] = await db
+    .select({ match: matches, post: posts })
+    .from(matches)
+    .innerJoin(posts, eq(posts.id, matches.postId))
+    .where(eq(matches.id, id))
+    .limit(1);
+  if (!row) return null;
+  const { match, post } = row;
+  const [search] = await db.select().from(searches).where(eq(searches.id, match.searchId)).limit(1);
   const owner = search
     ? ((await db.select().from(users).where(eq(users.id, search.userId)).limit(1))[0] ?? null)
     : null;
-  return { listing, search: search ?? null, owner };
+  return {
+    listing: {
+      id: match.id,
+      title: post.title,
+      link: post.link,
+      imageUrl: post.imageUrl,
+      location: post.location ?? "",
+      aiLabel: match.label,
+      aiScore: match.score,
+      aiReason: match.reason,
+      timePosted: fmtTime(post.postedAt) || "—",
+      timeScraped: fmtTime(match.createdAt),
+    },
+    search: search ?? null,
+    owner,
+  };
 }
 
 export async function getUser(id: number) {

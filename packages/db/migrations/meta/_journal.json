@@ -22,6 +22,20 @@
       "when": 1791098151564,
       "tag": "0002_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791138712536,
+      "tag": "0003_worker_enabled",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791138712880,
+      "tag": "0004_backfill_from_listings",
+      "breakpoints": true
     }
   ]
 }

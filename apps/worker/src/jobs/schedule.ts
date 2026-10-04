@@ -8,7 +8,6 @@ import {
   lte,
   matches,
   notInArray,
-  scraperStatus,
   searches,
   searchUrls,
   searchWatches,
@@ -25,8 +24,8 @@ export async function runSchedule(ctx: Ctx): Promise<{ enqueued: number; enabled
   const { db } = ctx;
   const now = ctx.now();
 
-  // Same kill-switch the admin toggle flips for the Python loop.
-  const [status] = await db.select({ enabled: scraperStatus.scraperEnabled }).from(scraperStatus).limit(1);
+  // The admin Overview toggle flips worker_status.enabled.
+  const [status] = await db.select({ enabled: workerStatus.enabled }).from(workerStatus).limit(1);
   const enabled = status?.enabled ?? true;
   await heartbeat(ctx, now);
   if (!enabled) {

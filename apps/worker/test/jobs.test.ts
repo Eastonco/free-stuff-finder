@@ -4,7 +4,6 @@ import {
   matches,
   notifications,
   posts,
-  scraperStatus,
   searches,
   searchUrls,
   searchWatches,
@@ -91,7 +90,7 @@ describe.skipIf(!testDbName)("worker jobs (Postgres)", () => {
 
   it("honors the admin kill-switch", async () => {
     await seedSearch();
-    await conn.db.insert(scraperStatus).values({ lastCycleAt: "x", cycleCount: 0, scraperEnabled: false });
+    await conn.db.insert(workerStatus).values({ id: 1, enabled: false });
     const t = testCtx(conn.db);
     expect(await runSchedule(t.ctx)).toEqual({ enqueued: 0, enabled: false });
     expect(t.enqueued).toEqual([]);
