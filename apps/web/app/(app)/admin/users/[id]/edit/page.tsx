@@ -16,7 +16,7 @@ export default async function EditUser({ params }: { params: Promise<{ id: strin
   return (
     <Flex direction="column" gap="5">
       <Heading size="6">Edit {user.name}</Heading>
-      <Card size="3">
+      <Card size={{ initial: "2", sm: "3" }}>
         <AccountForm
           action={saveAccount}
           userId={user.id}

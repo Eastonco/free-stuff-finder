@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function Landing() {
   if (await getCurrentUser()) redirect("/searches");
   return (
-    <Card size="3">
+    <Card size={{ initial: "2", sm: "3" }}>
       <Flex direction="column" gap="4">
         <Text size="3">
           Save a search, describe what you want in plain English, and get an alert the moment a matching free item is

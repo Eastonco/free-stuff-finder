@@ -33,7 +33,7 @@ export function SearchFields({ v }: { v: SearchValues }) {
           defaultValue={v.urls}
           rows={3}
           placeholder="https://seattle.craigslist.org/search/zip?..."
-          style={{ fontFamily: "var(--code-font-family)", fontSize: "var(--font-size-1)" }}
+          className="mono-input"
         />
       </Field>
       <Field

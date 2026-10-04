@@ -22,7 +22,7 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
     <Flex direction="column" gap="4">
       <Heading size="6">Listings</Heading>
       <Card>
-        <Table.Root variant="ghost">
+        <Table.Root variant="ghost" className="stack-table">
           <Table.Header>
             <Table.Row>
               <Table.ColumnHeaderCell>When</Table.ColumnHeaderCell>
@@ -48,17 +48,17 @@ export default async function ListingsPage({ searchParams }: { searchParams: Pro
                     {l.aiScore != null ? ` ${l.aiScore}` : ""}
                   </Badge>
                 </Table.Cell>
-                <Table.Cell>
+                <Table.Cell data-primary>
                   <RLink asChild>
                     <Link href={`/admin/listings/${l.id}`}>{l.title}</Link>
                   </RLink>
                 </Table.Cell>
-                <Table.Cell>
+                <Table.Cell data-full>
                   <Text size="1" color="gray">
                     {l.aiReason || ""}
                   </Text>
                 </Table.Cell>
-                <Table.Cell>
+                <Table.Cell data-end>
                   <GetButton listingId={l.id} link={l.link} size="1" />
                 </Table.Cell>
               </Table.Row>

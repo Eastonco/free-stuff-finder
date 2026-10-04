@@ -30,11 +30,17 @@ export default async function ListingDetail({ params }: { params: Promise<{ id: 
           <img
             src={listing.imageUrl}
             alt=""
-            style={{ width: 220, height: "auto", borderRadius: "var(--radius-3)", border: "1px solid var(--gray-a5)" }}
+            style={{
+              width: 220,
+              maxWidth: "100%",
+              height: "auto",
+              borderRadius: "var(--radius-3)",
+              border: "1px solid var(--gray-a5)",
+            }}
           />
         )}
-        <Card style={{ flexGrow: 1, minWidth: 280 }}>
-          <DataList.Root>
+        <Card style={{ flexGrow: 1, flexBasis: 280, minWidth: 0 }}>
+          <DataList.Root orientation={{ initial: "vertical", sm: "horizontal" }}>
             <DataList.Item>
               <DataList.Label>Verdict</DataList.Label>
               <DataList.Value>

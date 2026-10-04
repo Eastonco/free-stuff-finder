@@ -23,7 +23,7 @@ export default async function EditSearch({ params }: { params: Promise<{ id: str
   return (
     <Flex direction="column" gap="4">
       <Heading size="6">Edit search</Heading>
-      <Card size="3">
+      <Card size={{ initial: "2", sm: "3" }}>
         <SearchForm
           action={saveSearch}
           searchId={search.id}
@@ -38,7 +38,7 @@ export default async function EditSearch({ params }: { params: Promise<{ id: str
         />
       </Card>
 
-      <Card size="3">
+      <Card size={{ initial: "2", sm: "3" }}>
         <Flex direction="column" gap="3">
           <Heading size="3">Recent matches</Heading>
           {finds.length === 0 ? (

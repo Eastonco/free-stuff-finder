@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function VerifyPage({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
   const { token = "" } = await searchParams;
   return (
-    <Card size="3">
+    <Card size={{ initial: "2", sm: "3" }}>
       <form action={verifySignIn}>
         <input type="hidden" name="token" value={token} />
         <Flex direction="column" gap="4">

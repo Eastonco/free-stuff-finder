@@ -22,7 +22,7 @@ export default async function UserDetail({ params }: { params: Promise<{ id: str
       </Flex>
 
       <Card>
-        <DataList.Root>
+        <DataList.Root orientation={{ initial: "vertical", sm: "horizontal" }}>
           <DataList.Item>
             <DataList.Label>Channel</DataList.Label>
             <DataList.Value>{user.notifyChannel}</DataList.Value>
@@ -49,7 +49,7 @@ export default async function UserDetail({ params }: { params: Promise<{ id: str
       <Flex direction="column" gap="2">
         <Heading size="4">Searches</Heading>
         <Card>
-          <Table.Root variant="ghost">
+          <Table.Root variant="ghost" className="stack-table">
             <Table.Header>
               <Table.Row>
                 <Table.ColumnHeaderCell>Wishlist</Table.ColumnHeaderCell>
@@ -62,7 +62,7 @@ export default async function UserDetail({ params }: { params: Promise<{ id: str
             <Table.Body>
               {searches.map(({ search, total, wants, last }) => (
                 <Table.Row key={search.id}>
-                  <Table.Cell>
+                  <Table.Cell data-primary>
                     <RLink asChild>
                       <Link href={`/admin/searches/${search.id}`}>{search.preferencePrompt}</Link>
                     </RLink>
@@ -70,8 +70,10 @@ export default async function UserDetail({ params }: { params: Promise<{ id: str
                   <Table.Cell>
                     <Badge color={search.active ? "green" : "gray"}>{search.active ? "yes" : "no"}</Badge>
                   </Table.Cell>
-                  <Table.Cell align="right">{total}</Table.Cell>
-                  <Table.Cell align="right">
+                  <Table.Cell align="right" data-label="Listings">
+                    {total}
+                  </Table.Cell>
+                  <Table.Cell align="right" data-label="Wanted">
                     <Text weight="bold">{wants}</Text>
                   </Table.Cell>
                   <Table.Cell>

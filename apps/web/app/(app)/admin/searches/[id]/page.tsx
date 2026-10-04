@@ -29,7 +29,7 @@ export default async function SearchDetail({ params }: { params: Promise<{ id: s
       </Flex>
 
       <Card>
-        <DataList.Root>
+        <DataList.Root orientation={{ initial: "vertical", sm: "horizontal" }}>
           <DataList.Item>
             <DataList.Label>Owner</DataList.Label>
             <DataList.Value>
@@ -78,7 +78,7 @@ export default async function SearchDetail({ params }: { params: Promise<{ id: s
       <Flex direction="column" gap="2">
         <Heading size="4">Listings</Heading>
         <Card>
-          <Table.Root variant="ghost">
+          <Table.Root variant="ghost" className="stack-table">
             <Table.Header>
               <Table.Row>
                 <Table.ColumnHeaderCell>When</Table.ColumnHeaderCell>
@@ -101,12 +101,12 @@ export default async function SearchDetail({ params }: { params: Promise<{ id: s
                       {l.aiScore != null ? ` ${l.aiScore}` : ""}
                     </Badge>
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell data-primary>
                     <RLink asChild>
                       <Link href={`/admin/listings/${l.id}`}>{l.title}</Link>
                     </RLink>
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell data-full>
                     <Text size="1" color="gray">
                       {l.aiReason || ""}
                     </Text>

@@ -43,7 +43,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
     <Flex direction="column" gap="5">
       <Flex align="center" justify="between" wrap="wrap" gap="3">
         <Heading size="6">Overview</Heading>
-        <Flex align="center" gap="4">
+        <Flex align="center" gap="4" wrap="wrap">
           <ScraperToggle enabled={status?.scraperEnabled ?? true} />
           <Flex align="center" gap="2">
             <Text size="2" weight="bold" color="gray">
@@ -66,7 +66,7 @@ export default async function Overview({ searchParams }: { searchParams: Promise
       <Flex direction="column" gap="2">
         <Heading size="4">Recent classifications</Heading>
         <Card>
-          <Table.Root variant="ghost">
+          <Table.Root variant="ghost" className="stack-table">
             <Table.Header>
               <Table.Row>
                 <Table.ColumnHeaderCell>When</Table.ColumnHeaderCell>
@@ -92,17 +92,17 @@ export default async function Overview({ searchParams }: { searchParams: Promise
                       {l.aiScore != null ? ` ${l.aiScore}` : ""}
                     </Badge>
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell data-primary>
                     <RLink asChild>
                       <Link href={`/admin/listings/${l.id}`}>{l.title}</Link>
                     </RLink>
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell data-full>
                     <Text size="1" color="gray">
                       {l.aiReason || ""}
                     </Text>
                   </Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell data-end>
                     <GetButton listingId={l.id} link={l.link} size="1" />
                   </Table.Cell>
                 </Table.Row>

@@ -25,8 +25,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Link href="/searches" style={{ textDecoration: "none", color: "inherit" }}>
               <Text weight="bold">Free Stuff Finder</Text>
             </Link>
-            <Flex align="center" gap="3">
-              <Text size="2" color="gray">
+            <Flex align="center" gap="3" minWidth="0">
+              <Text size="2" color="gray" truncate>
                 {user.name}
               </Text>
               <form action={signOut}>
