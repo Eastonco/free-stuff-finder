@@ -20,6 +20,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.131.0
+        version: 0.131.0(zod@4.6.5)
       '@fsf/db':
         specifier: workspace:*
         version: link:../../packages/db

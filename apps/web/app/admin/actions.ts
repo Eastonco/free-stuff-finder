@@ -1,6 +1,6 @@
 "use server";
 
-import { scraperStatus, searches, users } from "@fsf/db";
+import { scraperStatus, searches, searchUrls, users } from "@fsf/db";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -87,4 +87,10 @@ export async function setScraperEnabled(enabled: boolean): Promise<void> {
     await db.update(scraperStatus).set({ scraperEnabled: enabled }).where(eq(scraperStatus.id, row.id));
   }
   revalidatePath("/admin");
+}
+
+// "Scrape now": mark every URL due. The worker's next minute tick picks them up.
+export async function scrapeNow(): Promise<void> {
+  await db.update(searchUrls).set({ nextScrapeAt: new Date(0) });
+  revalidatePath("/admin/worker");
 }

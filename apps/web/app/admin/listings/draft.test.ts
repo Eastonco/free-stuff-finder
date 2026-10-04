@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildPrompt, extractPostingBody, prettyPhone } from "./draft";
+import { buildPrompt, prettyPhone } from "./draft";
 
 describe("prettyPhone", () => {
   it("drops +1 and formats US numbers", () => {
@@ -36,19 +36,5 @@ describe("buildPrompt", () => {
     expect(bare).not.toMatch(/text me at/i);
     expect(bare).toMatch(/no phone number to share/);
     expect(bare).toMatch(/no description available/);
-  });
-});
-
-describe("extractPostingBody", () => {
-  it("pulls and cleans the posting body section", () => {
-    const html = `<div><section id="postingbody"><div class="print-qrcode">QR Code Link to This Post</div>Comfy couch,<br>free to a good home &amp; pet-free.</section></div>`;
-    const body = extractPostingBody(html);
-    expect(body).toMatch(/Comfy couch/);
-    expect(body).toMatch(/free to a good home & pet-free/);
-    expect(body).not.toMatch(/QR Code/);
-  });
-
-  it("returns an empty string when the section is absent", () => {
-    expect(extractPostingBody("<html><body>no body here</body></html>")).toBe("");
   });
 });

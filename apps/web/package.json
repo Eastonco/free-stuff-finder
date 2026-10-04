@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
     "@fsf/db": "workspace:*",
     "@fsf/engine": "workspace:*",
     "@radix-ui/themes": "^3.3.0",

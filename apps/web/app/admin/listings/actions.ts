@@ -1,23 +1,16 @@
 "use server";
 
+import Anthropic from "@anthropic-ai/sdk";
+import { CLASSIFIER_MODEL, fetchHtml, parseDetailPage } from "@fsf/engine";
+
 import { getListing } from "../queries";
-import { buildPrompt, extractPostingBody } from "./draft";
+import { buildPrompt } from "./draft";
 
-const MODEL = "claude-haiku-4-5-20251001";
-
-// Fetch the CL listing page and pull its description. Non-fatal: any failure
+// Fetch the listing page and pull its description. Non-fatal: any failure
 // (blocked, timeout, layout change) returns "" so drafting still proceeds.
 async function fetchDescription(link: string): Promise<string> {
   try {
-    const res = await fetch(link, {
-      headers: {
-        "user-agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-      },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return "";
-    return extractPostingBody(await res.text());
+    return parseDetailPage(await fetchHtml(link, { timeoutMs: 8000 })).description;
   } catch {
     return "";
   }
@@ -33,35 +26,30 @@ export async function draftPickupMessage(listingId: number): Promise<string> {
   if (!data) throw new Error("Listing not found.");
   const { listing, owner } = data;
 
-  const description = await fetchDescription(listing.link);
   const prompt = buildPrompt({
     name: owner?.name ?? "",
     phone: owner?.pickupPhone ?? "",
     note: owner?.pickupNote ?? "",
     title: listing.title,
     location: listing.location,
-    description,
+    description: await fetchDescription(listing.link),
   });
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: MODEL,
+  let res: Anthropic.Message;
+  try {
+    res = await new Anthropic({ apiKey, timeout: 30_000 }).messages.create({
+      model: CLASSIFIER_MODEL,
       max_tokens: 400,
       messages: [{ role: "user", content: prompt }],
-    }),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`AI request failed (${res.status}). ${detail.slice(0, 200)}`);
+    });
+  } catch (err) {
+    const status = err instanceof Anthropic.APIError ? ` (${err.status})` : "";
+    throw new Error(`AI request failed${status}. ${err instanceof Error ? err.message.slice(0, 200) : ""}`);
   }
-  const json = await res.json();
-  const text = json?.content?.[0]?.text;
-  if (typeof text !== "string" || !text.trim()) throw new Error("AI returned an empty message.");
-  return text.trim();
+  const text = res.content
+    .flatMap((b) => (b.type === "text" ? [b.text] : []))
+    .join("")
+    .trim();
+  if (!text) throw new Error("AI returned an empty message.");
+  return text;
 }

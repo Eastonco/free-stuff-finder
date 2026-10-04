@@ -53,7 +53,7 @@ CI (`.github/workflows/ci.yml`) runs lint, typecheck, test and build on every PR
 docker compose up --build      # Postgres + migrate + web + TS worker (dry-run) + legacy Python scraper/Selenium
 docker compose --profile tunnel up --build   # also start the Cloudflare tunnel
 ```
-**Dev footgun:** the web container only live-syncs source edits when started with **`docker compose watch`** (or `up --watch`). A plain `docker compose up` does NOT sync your edits into the container — they'll sit on disk while the container runs stale code. Either run `docker compose watch web`, or `docker compose cp ./apps/web/<file> web:/app/apps/web/<file>` to push individual files (Next dev then hot-reloads).
+**Prod vs dev:** plain `docker compose up` runs the web app as the production standalone build (what the tunnel serves). For local development with live reload, use the override: `docker compose -f docker-compose.yml -f compose.dev.yml watch`. Without `watch`, source edits sit on disk while the container runs stale code.
 
 ## How a scrape cycle works (`backend/main.py`)
 

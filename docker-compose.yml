@@ -1,4 +1,6 @@
 # Runs the whole stack anywhere: `docker compose up --build`
+# Local development with live reload of the web app:
+#   docker compose -f docker-compose.yml -f compose.dev.yml watch
 # Secrets (ANTHROPIC_API_KEY, INVITE_CODE, Twilio) come from .env via env_file.
 # DB/Selenium wiring is set here so it works inside the compose network.
 
@@ -54,7 +56,7 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-      target: dev
+      target: runner # production standalone build; compose.dev.yml switches to the dev server
     env_file: .env
     environment:
       DB_HOST: db
@@ -67,28 +69,6 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-    develop:
-      watch:
-        - path: ./apps/web/app
-          action: sync
-          target: /app/apps/web/app
-        - path: ./apps/web/db
-          action: sync
-          target: /app/apps/web/db
-        - path: ./apps/web/lib
-          action: sync
-          target: /app/apps/web/lib
-        - path: ./apps/web/middleware.ts
-          action: sync+restart
-          target: /app/apps/web/middleware.ts
-        - path: ./apps/web/next.config.ts
-          action: sync+restart
-          target: /app/apps/web/next.config.ts
-        - path: ./apps/web/package.json
-          action: rebuild
-        - path: ./pnpm-lock.yaml
-          action: rebuild
-
   # TypeScript worker (apps/worker): replaces the Python scraper below.
   # Shadow mode by default — it classifies and records everything but sends
   # nothing until WORKER_NOTIFY_DRY_RUN=0. No Selenium needed (plain HTTP).

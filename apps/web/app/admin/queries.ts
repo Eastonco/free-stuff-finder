@@ -1,9 +1,24 @@
 // Shared admin data access. Server-only — imported by admin pages (all force-dynamic).
-// N+1 count queries per search mirror the original page and are fine at this scale.
-// ponytail: swap to grouped aggregates if a single page ever fans out to hundreds of searches.
+// Per-search stats come from one grouped query per page, never one query per search.
+import {
+  count,
+  desc,
+  eq,
+  inArray,
+  listings,
+  matches,
+  max,
+  notifications,
+  posts,
+  scraperStatus,
+  searches,
+  searchUrls,
+  searchWatches,
+  sql,
+  users,
+  workerStatus,
+} from "@fsf/db";
 
-import { listings, scraperStatus, searches, users } from "@fsf/db";
-import { and, count, desc, eq, max } from "drizzle-orm";
 import { db } from "@/db";
 
 export type Search = typeof searches.$inferSelect;
@@ -15,32 +30,42 @@ export async function getStatus() {
   return status ?? null;
 }
 
-// Per-search aggregates (total listings, wanted, last scrape). Reused by overview,
-// searches list, and search detail.
-export async function searchStats(searchId: number) {
-  const [{ total }] = await db.select({ total: count() }).from(listings).where(eq(listings.searchId, searchId));
-  const [{ wants }] = await db
-    .select({ wants: count() })
+type SearchStats = { total: number; wants: number; last: string | null };
+const EMPTY_STATS: SearchStats = { total: 0, wants: 0, last: null };
+
+// Per-search aggregates (total listings, wanted, last scrape) for many searches in one query.
+async function statsBySearch(searchIds: number[]): Promise<Map<number, SearchStats>> {
+  if (!searchIds.length) return new Map();
+  const rows = await db
+    .select({
+      searchId: listings.searchId,
+      total: count(),
+      wants: sql<number>`count(*) filter (where ${listings.aiLabel} = 'want')`.mapWith(Number),
+      last: max(listings.timeScraped),
+    })
     .from(listings)
-    .where(and(eq(listings.searchId, searchId), eq(listings.aiLabel, "want")));
-  const [{ last }] = await db
-    .select({ last: max(listings.timeScraped) })
-    .from(listings)
-    .where(eq(listings.searchId, searchId));
-  return { total, wants, last };
+    .where(inArray(listings.searchId, searchIds))
+    .groupBy(listings.searchId);
+  return new Map(rows.map(({ searchId, ...stats }) => [searchId, stats]));
+}
+
+export async function searchStats(searchId: number): Promise<SearchStats> {
+  return (await statsBySearch([searchId])).get(searchId) ?? EMPTY_STATS;
 }
 
 export async function getOverview() {
-  const usersList = await db.select().from(users);
-  const searchesList = await db.select().from(searches);
-  const [{ nListings }] = await db.select({ nListings: count() }).from(listings);
-  const labelRows = await db.select({ label: listings.aiLabel, n: count() }).from(listings).groupBy(listings.aiLabel);
+  const [[{ users: nUsers } = { users: 0 }], [{ searches: nSearches } = { searches: 0 }], labelRows] =
+    await Promise.all([
+      db.select({ users: count() }).from(users),
+      db.select({ searches: count() }).from(searches),
+      db.select({ label: listings.aiLabel, n: count() }).from(listings).groupBy(listings.aiLabel),
+    ]);
   const labels = Object.fromEntries(labelRows.map((r) => [r.label ?? "baseline", r.n]));
 
   return {
-    users: usersList.length,
-    searches: searchesList.length,
-    listings: nListings,
+    users: nUsers,
+    searches: nSearches,
+    listings: labelRows.reduce((sum, r) => sum + r.n, 0),
     want: labels.want ?? 0,
     skip: labels.skip ?? 0,
     baseline: labels.baseline ?? 0,
@@ -111,8 +136,40 @@ export async function getUser(id: number) {
   const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
   if (!user) return null;
   const rows = await db.select().from(searches).where(eq(searches.userId, id)).orderBy(desc(searches.id));
-  const searchesWithStats = await Promise.all(
-    rows.map(async (search) => ({ search, ...(await searchStats(search.id)) })),
-  );
-  return { user, searches: searchesWithStats };
+  const stats = await statsBySearch(rows.map((r) => r.id));
+  return { user, searches: rows.map((search) => ({ search, ...(stats.get(search.id) ?? EMPTY_STATS) })) };
+}
+
+// --- TS worker health ---
+
+export async function getWorkerHealth() {
+  const [[status], urls, failed] = await Promise.all([
+    db.select().from(workerStatus).limit(1),
+    db
+      .select({
+        url: searchUrls,
+        watchers:
+          sql<number>`(select count(*) from ${searchWatches} where ${searchWatches.searchUrlId} = ${searchUrls.id})`.mapWith(
+            Number,
+          ),
+      })
+      .from(searchUrls)
+      .orderBy(desc(searchUrls.consecutiveEmpty), searchUrls.url),
+    db
+      .select({
+        id: notifications.id,
+        channel: notifications.channel,
+        error: notifications.error,
+        attempts: notifications.attempts,
+        createdAt: notifications.createdAt,
+        title: posts.title,
+      })
+      .from(notifications)
+      .innerJoin(matches, eq(matches.id, notifications.matchId))
+      .innerJoin(posts, eq(posts.id, matches.postId))
+      .where(eq(notifications.status, "failed"))
+      .orderBy(desc(notifications.id))
+      .limit(20),
+  ]);
+  return { status: status ?? null, urls, failed };
 }

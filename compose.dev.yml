@@ -1,0 +1,28 @@
+# Dev override: run the web app as `next dev` with source synced from the host.
+#   docker compose -f docker-compose.yml -f compose.dev.yml watch
+services:
+  web:
+    build:
+      target: dev
+    develop:
+      watch:
+        - path: ./apps/web/app
+          action: sync
+          target: /app/apps/web/app
+        - path: ./apps/web/db
+          action: sync
+          target: /app/apps/web/db
+        - path: ./apps/web/lib
+          action: sync
+          target: /app/apps/web/lib
+        - path: ./apps/web/middleware.ts
+          action: sync+restart
+          target: /app/apps/web/middleware.ts
+        - path: ./apps/web/next.config.ts
+          action: sync+restart
+          target: /app/apps/web/next.config.ts
+        - path: ./apps/web/package.json
+          action: rebuild
+        - path: ./pnpm-lock.yaml
+          action: rebuild
+

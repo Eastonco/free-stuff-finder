@@ -1,26 +1,7 @@
 // Pure helpers for the "GET" pickup-message feature. No "use server" here: a
 // "use server" module may only export async functions, so the testable sync
-// helpers live here and actions.ts imports them.
-
-const POSTINGBODY_RE = /<section[^>]*id=["']postingbody["'][^>]*>([\s\S]*?)<\/section>/i;
-const DESC_MAX = 1500;
-
-// Pull the human-written description out of a listing page.
-// Returns "" if the section isn't present (blocked page, layout change, etc.).
-export function extractPostingBody(html: string): string {
-  const m = html.match(POSTINGBODY_RE);
-  if (!m) return "";
-  return m[1]
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]+>/g, " ") // strip remaining tags
-    .replace(/QR Code Link to This Post/gi, "") // listing boilerplate
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n\s*\n\s*\n+/g, "\n\n")
-    .trim()
-    .slice(0, DESC_MAX);
-}
+// helpers live here and actions.ts imports them. (Description extraction is
+// @fsf/engine's parseDetailPage.)
 
 // Pretty-print a US phone for the message: drop the +1 country code and format
 // as (206)-953-1234. Non-US / unexpected shapes fall back to the trimmed input.
