@@ -54,7 +54,7 @@ export async function getOverview() {
 }
 
 // Recent listings joined to their owning user's name (listing → search.userId → user).
-export async function recentListings(limit = 20) {
+export async function recentListings(limit = 20, offset = 0) {
   return db
     .select({
       id: listings.id,
@@ -70,7 +70,8 @@ export async function recentListings(limit = 20) {
     .leftJoin(searches, eq(listings.searchId, searches.id))
     .leftJoin(users, eq(searches.userId, users.id))
     .orderBy(desc(listings.id))
-    .limit(limit);
+    .limit(limit)
+    .offset(offset);
 }
 
 // --- list pages ---
@@ -90,8 +91,8 @@ export async function listUsers() {
   return db.select().from(users).orderBy(desc(users.id));
 }
 
-export async function listListingRows(limit = 100) {
-  return recentListings(limit);
+export async function listListingRows(limit = 100, offset = 0) {
+  return recentListings(limit, offset);
 }
 
 // --- detail pages ---

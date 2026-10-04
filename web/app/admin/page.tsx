@@ -4,8 +4,12 @@ import { Badge, Card, Flex, Grid, Heading, Link as RLink, Table, Text } from "@r
 import { HeartbeatBadge } from "./auto-refresh";
 import GetButton from "./listings/get-button";
 import { getOverview, getStatus, recentListings } from "./queries";
+import { Pager, pageFromParam } from "./pager";
+import { ScraperToggle } from "./scraper-toggle";
 
 export const dynamic = "force-dynamic"; // always read live data, never prerender
+
+const PAGE_SIZE = 20;
 
 function Stat({ label, value, color }: { label: string; value: number; color?: "green" }) {
   return (
@@ -24,18 +28,33 @@ function verdictColor(label: string | null): "green" | "red" | "gray" {
   return label === "want" ? "green" : label === "skip" ? "red" : "gray";
 }
 
-export default async function Overview() {
-  const [stats, status, recent] = await Promise.all([getOverview(), getStatus(), recentListings(20)]);
+export default async function Overview({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const page = pageFromParam((await searchParams).page);
+  // Fetch one extra row to learn if there's a next page without a count query.
+  const [stats, status, fetched] = await Promise.all([
+    getOverview(),
+    getStatus(),
+    recentListings(PAGE_SIZE + 1, (page - 1) * PAGE_SIZE),
+  ]);
+  const hasNext = fetched.length > PAGE_SIZE;
+  const recent = fetched.slice(0, PAGE_SIZE);
 
   return (
     <Flex direction="column" gap="5">
       <Flex align="center" justify="between" wrap="wrap" gap="3">
         <Heading size="6">Overview</Heading>
-        <Flex align="center" gap="2">
-          <Text size="2" weight="bold" color="gray">
-            Scraper
-          </Text>
-          <HeartbeatBadge lastCycleAt={status?.lastCycleAt ?? null} cycleCount={status?.cycleCount ?? null} />
+        <Flex align="center" gap="4">
+          <ScraperToggle enabled={status?.scraperEnabled ?? true} />
+          <Flex align="center" gap="2">
+            <Text size="2" weight="bold" color="gray">
+              Scraper
+            </Text>
+            <HeartbeatBadge lastCycleAt={status?.lastCycleAt ?? null} cycleCount={status?.cycleCount ?? null} />
+          </Flex>
         </Flex>
       </Flex>
 
@@ -95,6 +114,7 @@ export default async function Overview() {
             </Table.Body>
           </Table.Root>
         </Card>
+        <Pager basePath="/admin" page={page} hasNext={hasNext} />
       </Flex>
     </Flex>
   );

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db } from "@/db";
-import { searches, users } from "@/db/schema";
+import { scraperStatus, searches, users } from "@/db/schema";
 import { validateNotify, validatePickup, validateSearch } from "@/lib/validate";
 
 // empty string → null so the DB column stays clean
@@ -69,4 +69,20 @@ export async function updateSearch(_prev: SaveState, formData: FormData): Promis
 
   revalidatePath(`/admin/searches/${id}`);
   redirect(`/admin/searches/${id}`);
+}
+
+// Global scraper kill-switch. Reads/writes the single scraper_status row that the
+// Python loop checks each cycle. Called directly by the Overview toggle.
+export async function setScraperEnabled(enabled: boolean): Promise<void> {
+  const [row] = await db.select().from(scraperStatus).limit(1);
+  if (!row) {
+    await db.insert(scraperStatus).values({
+      lastCycleAt: new Date().toISOString(),
+      cycleCount: 0,
+      scraperEnabled: enabled,
+    });
+  } else {
+    await db.update(scraperStatus).set({ scraperEnabled: enabled }).where(eq(scraperStatus.id, row.id));
+  }
+  revalidatePath("/admin");
 }

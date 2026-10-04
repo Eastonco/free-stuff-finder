@@ -48,4 +48,5 @@ export const scraperStatus = pgTable("scraper_status", {
   id: serial("id").primaryKey(),
   lastCycleAt: text("last_cycle_at").notNull(),
   cycleCount: integer("cycle_count").notNull(),
+  scraperEnabled: boolean("scraper_enabled").notNull().default(true),
 });

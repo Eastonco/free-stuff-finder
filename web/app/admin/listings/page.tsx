@@ -2,16 +2,27 @@ import Link from "next/link";
 import { Badge, Card, Flex, Heading, Link as RLink, Table, Text } from "@radix-ui/themes";
 
 import { listListingRows } from "../queries";
+import { Pager, pageFromParam } from "../pager";
 import GetButton from "./get-button";
 
 export const dynamic = "force-dynamic";
+
+const PAGE_SIZE = 50;
 
 function verdictColor(label: string | null): "green" | "red" | "gray" {
   return label === "want" ? "green" : label === "skip" ? "red" : "gray";
 }
 
-export default async function ListingsPage() {
-  const rows = await listListingRows(100);
+export default async function ListingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const page = pageFromParam((await searchParams).page);
+  // Fetch one extra row to learn if there's a next page without a count query.
+  const fetched = await listListingRows(PAGE_SIZE + 1, (page - 1) * PAGE_SIZE);
+  const hasNext = fetched.length > PAGE_SIZE;
+  const rows = fetched.slice(0, PAGE_SIZE);
   return (
     <Flex direction="column" gap="4">
       <Heading size="6">Listings</Heading>
@@ -60,6 +71,7 @@ export default async function ListingsPage() {
           </Table.Body>
         </Table.Root>
       </Card>
+      <Pager basePath="/admin/listings" page={page} hasNext={hasNext} />
     </Flex>
   );
 }

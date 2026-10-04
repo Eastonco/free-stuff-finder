@@ -98,10 +98,12 @@ class ScraperStatus(Base):
     id: Mapped[int] = mapped_column(Integer, init=False, primary_key=True)
     last_cycle_at: Mapped[str] = mapped_column(String, default_factory=_now)
     cycle_count: Mapped[int] = mapped_column(Integer, default=0)
+    scraper_enabled: Mapped[bool] = mapped_column(Boolean, default=True)  # admin remote kill-switch
 
 
 def record_cycle(session):
-    """Call once per scraper loop cycle to update the heartbeat."""
+    """Call once per scraper loop cycle to update the heartbeat. Returns the row
+    so callers can read the scraper_enabled flag without a second query."""
     row = session.scalars(select(ScraperStatus)).first()
     if row is None:
         row = ScraperStatus()
@@ -109,6 +111,7 @@ def record_cycle(session):
     row.last_cycle_at = _now()
     row.cycle_count = (row.cycle_count or 0) + 1
     session.commit()
+    return row
 
 
 def init_db(engine):
