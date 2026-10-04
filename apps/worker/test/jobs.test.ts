@@ -43,7 +43,6 @@ describe.skipIf(!testDbName)("worker jobs (Postgres)", () => {
         notifyChannel: "ntfy",
         notifyTarget: "jo-topic",
         editToken: crypto.randomUUID(),
-        createdAt: "2026-01-01",
       })
       .returning();
     const [search] = await conn.db
@@ -54,7 +53,6 @@ describe.skipIf(!testDbName)("worker jobs (Postgres)", () => {
         preferencePrompt: "a couch",
         excludeFilters: opts.excludeFilters ?? [],
         active: opts.active ?? true,
-        createdAt: "2026-01-01",
       })
       .returning();
     return { user: user!, search: search! };

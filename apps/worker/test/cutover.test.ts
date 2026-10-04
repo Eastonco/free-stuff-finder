@@ -38,7 +38,7 @@ describe.skipIf(!testDbName)("cutover backfill (Postgres)", () => {
   async function seed() {
     const [u] = await conn.db
       .insert(users)
-      .values({ name: "Jo", notifyChannel: "ntfy", notifyTarget: "jo", editToken: "t", createdAt: "x" })
+      .values({ name: "Jo", notifyChannel: "ntfy", notifyTarget: "jo", editToken: "t" })
       .returning();
     const mk = async (url: string) =>
       (
@@ -50,7 +50,6 @@ describe.skipIf(!testDbName)("cutover backfill (Postgres)", () => {
             preferencePrompt: "p",
             excludeFilters: [],
             active: true,
-            createdAt: "x",
           })
           .returning()
       )[0]!;

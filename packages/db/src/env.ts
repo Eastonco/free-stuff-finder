@@ -1,4 +1,4 @@
-// Same DB_* env vars and defaults the Python side reads (backend/db.py).
+// DB_* env vars (compose sets them for containers; .env covers bare-metal runs).
 export type DbConfig = {
   host: string;
   port: number;

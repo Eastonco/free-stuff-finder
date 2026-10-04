@@ -1,54 +1,36 @@
 # free-stuff finder
 
-Scrapes **free** listings, runs each new post through **Claude (Haiku)**
+Scrapes **free** listings, runs each new post through **Claude (Haiku, via OpenRouter)**
 to decide whether you'd actually want it, and pushes the keepers to you via
-**ntfy** (or SMS). You and a few friends each set up your own profile — what to
-watch and what you're after — through a small self-serve web page, exposed
-publicly via a **Cloudflare Tunnel**. Runs on a Raspberry Pi.
-
-Config lives in **Postgres**, not JSON files: the web form writes it, the scraper
-loop reads everyone's active searches each cycle.
+**ntfy**, SMS, or Discord. You and a few friends each have an account with your own
+searches (what to watch and what you're after), managed through a small web app
+exposed publicly via a **Cloudflare Tunnel**.
 
 ```
-cloudflared (freestuff.yourdomain.com) ──► Next.js web app (apps/web) ─────┐
-                                                                 ├─► Postgres
-        scraper loop (main.py) ──────────────────────────────────┘   users / searches
-              │                                                       listings / reactions
-              └─► Claude Haiku (classify.py) ──► ntfy / SMS (notify.py)
+cloudflared (freestuff.yourdomain.com) ──► web (apps/web, Next.js) ─┐
+                                                                    ├─► Postgres
+worker (apps/worker) ──► Craigslist (plain HTTP) ───────────────────┘   users / searches /
+   │                                                                    posts / matches
+   └─► Claude Haiku via OpenRouter ──► ntfy / SMS / Discord
 ```
 
-The web app and the scraper are independent services that share nothing but the
-Postgres schema. The Next.js app reads/writes `users`/`searches` directly; the
-Python scraper owns the schema (creates the tables on first run).
+The web app and the worker share nothing but the Postgres schema, which lives in
+`packages/db` (Drizzle, with SQL migrations). The worker's logic (parsing,
+classifying, notifying) is a library in `packages/engine`.
 
 # Setup
 
 ## Requirements
-* A 64-bit Raspberry Pi (or any Linux box), Python 3.9+
-* `firefox` + geckodriver (`apt install firefox` includes it on the Pi)
-* `postgresql`
-* An [Anthropic API key](https://console.anthropic.com/) (classification is pennies/cycle at this volume)
-* The free [ntfy app](https://ntfy.sh/) on your phone (or a Twilio number for SMS)
-
-```sh
-pip install -r requirements.txt
-```
-
-## Postgres
-```sh
-apt install postgresql
-sudo -u postgres psql
-\password postgres        # set a password
-CREATE DATABASE craigslist;
-```
-Tables are created automatically on first run.
+* Docker (recommended), or Node 22 + pnpm + Postgres for bare-metal
+* An [OpenRouter API key](https://openrouter.ai/) (classification is pennies a day at this volume)
+* The free [ntfy app](https://ntfy.sh/) on your phone (or a Twilio number for SMS, or a Discord webhook)
 
 ## Environment
 Copy `.env.example` to `.env` and fill it in (`.env` is gitignored):
 ```sh
 cp .env.example .env
 ```
-At minimum set `OPENROUTER_API_KEY`, `INVITE_CODE`, `APP_URL` (the public URL sign-in links point to), and the `DB_*` values. (`ANTHROPIC_API_KEY` is only needed while the legacy Python scraper runs.)
+At minimum set `OPENROUTER_API_KEY`, `INVITE_CODE`, and `APP_URL` (the public URL sign-in links point to). The `DB_*` values only matter for bare-metal runs.
 
 ## Admin dashboard
 There are no admin passwords. Create your own account like anyone else, then mark
@@ -59,46 +41,33 @@ pnpm --filter @fsf/db grant-admin <your ntfy topic | phone | user id>
 Admin accounts see an **Admin** tab with the overview, every search, user and listing,
 and worker health.
 
-# Run with Docker (recommended — works on Mac, Pi, anywhere)
+# Run with Docker (recommended: works on Mac, Pi, anywhere)
 
-Brings up Postgres, a headless Firefox (Selenium), the web app, and the scraper
-loop together. Only prerequisite is Docker + a filled-in `.env`.
+Brings up Postgres, the migrations, the web app and the worker.
 
 ```sh
-cp .env.example .env        # set OPENROUTER_API_KEY + INVITE_CODE
-docker compose up --build
+cp .env.example .env        # set OPENROUTER_API_KEY, INVITE_CODE, APP_URL
+docker compose up -d --build
 ```
 
 - Web app → http://localhost:8000
-- The scraper reaches the browser via the `selenium` service (`SELENIUM_REMOTE_URL`),
-  so there's no geckodriver to install.
 - Postgres data persists in the `pgdata` volume.
+- The worker checks every saved search every ~90 s. The first scrape of a new search
+  records what's already listed as a baseline (no alerts), so nobody gets flooded.
+- To record alerts without sending them (e.g. while testing), set
+  `WORKER_NOTIFY_DRY_RUN=1` in `.env`.
 
-Compose overrides `DB_HOST`/`SELENIUM_REMOTE_URL` for the container network, so the
-`DB_*` values in `.env` only matter for bare-metal runs (below).
+To deploy an update: `git pull && docker compose up -d --build migrate web worker`.
 
-# Running bare-metal (e.g. directly on the Pi)
+# Running bare-metal
 
-Two processes run side by side:
-
-**1. The scraper loop**
 ```sh
-python -m backend.main
-```
-Every ~minute it reads all active searches from Postgres, scrapes them, classifies
-new free items, and notifies the owner. The first time it sees a new search it
-records the current listings as a baseline (no alerts, no API spend) so you aren't
-flooded — alerts start on the next cycle.
-
-**2. The web app** (so you + friends can self-serve)
-```sh
-# from the repo root; needs Node 22 (see .nvmrc) and pnpm
+# from the repo root; needs Node 22 (see .nvmrc) and pnpm (`corepack enable`)
 pnpm install
-pnpm --filter @fsf/db db:migrate # apply schema migrations (packages/db/migrations)
-pnpm dev          # or: pnpm build && pnpm --filter @fsf/web start  (both serve on :8000)
+pnpm --filter @fsf/db db:migrate   # apply schema migrations
+pnpm --filter @fsf/worker start    # the worker
+pnpm dev                           # the web app on :8000 (or: pnpm build && pnpm --filter @fsf/web start)
 ```
-The web app is a Next.js project in `apps/web`. It talks to Postgres directly using
-the same `DB_*` env vars as the scraper.
 
 ## (Optional) Expose the web app with a Cloudflare Tunnel
 Gives you a stable public URL (e.g. `freestuff.yourdomain.com`) with no port-forwarding.
@@ -138,14 +107,11 @@ cloned copy of this repo never carries someone else's tunnel.
    A one-time link arrives in the same place your alerts do.
 
 # Notes
-- Old SMS-command control and the per-person JSON config files are gone — the web
-  app replaces them.
 - ntfy public topics are world-readable; use an unguessable topic name, or self-host
   ntfy and point `NTFY_SERVER` at it.
-- Deployment hints (geckodriver, etc.) are in `notes.md`.
+- `listings` is the retired Python scraper's history, kept as a read-only archive.
+  `pnpm --filter @fsf/worker eval:classifier` uses it to compare classifiers.
 
 # Todo
-- [ ] Web feed of each person's hits with 👍/👎 (schema is already there: `reactions` table)
-- [ ] Train a learned classifier once enough reactions are collected
-- [ ] Dockerize for easy deploy
-- [ ] Parse "4 mins ago" into a real timestamp; tighten DB datatypes
+- [ ] Web feed of each person's hits with 👍/👎, then use them to tune the classifier
+- [ ] Read search results from Craigslist's JSON feed (fresher than the static HTML; see `docs/decisions/0001-http-not-browser.md`)

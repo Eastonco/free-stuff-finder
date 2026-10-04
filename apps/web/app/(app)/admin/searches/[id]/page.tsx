@@ -1,7 +1,7 @@
 import { Badge, Button, Card, DataList, Flex, Heading, Link as RLink, Table, Text } from "@radix-ui/themes";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-
+import { fmtTime } from "@/lib/time";
 import { getSearch } from "../../queries";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +70,7 @@ export default async function SearchDetail({ params }: { params: Promise<{ id: s
           </DataList.Item>
           <DataList.Item>
             <DataList.Label>Created</DataList.Label>
-            <DataList.Value>{search.createdAt}</DataList.Value>
+            <DataList.Value>{fmtTime(search.createdAt)}</DataList.Value>
           </DataList.Item>
         </DataList.Root>
       </Card>

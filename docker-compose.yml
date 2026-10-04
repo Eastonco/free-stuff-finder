@@ -1,8 +1,8 @@
 # Runs the whole stack anywhere: `docker compose up --build`
 # Local development with live reload of the web app:
 #   docker compose -f docker-compose.yml -f compose.dev.yml watch
-# Secrets (OPENROUTER_API_KEY, INVITE_CODE, Twilio; ANTHROPIC_API_KEY for the legacy scraper) come from .env via env_file.
-# DB/Selenium wiring is set here so it works inside the compose network.
+# Secrets (OPENROUTER_API_KEY, INVITE_CODE, APP_URL, Twilio) come from .env via env_file.
+# DB wiring is set here so it works inside the compose network.
 
 services:
   db:
@@ -20,17 +20,6 @@ services:
       retries: 12
     ports:
       - "5432:5432"
-
-  selenium:
-    # Multi-arch (works on Apple Silicon + the Pi). If your platform can't pull
-    # it, swap to seleniarm/standalone-firefox.
-    image: selenium/standalone-firefox:latest
-    shm_size: 2gb          # browsers crash with the default tiny /dev/shm
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4444/wd/hub/status || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
 
   # Applies Drizzle migrations (packages/db/migrations) then exits; web waits
   # for it. Safe on the legacy create_all DB — it baselines instead of re-creating.
@@ -69,9 +58,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-  # TypeScript worker (apps/worker): replaces the Python scraper below.
-  # Shadow mode by default — it classifies and records everything but sends
-  # nothing until WORKER_NOTIFY_DRY_RUN=0. No Selenium needed (plain HTTP).
+  # The scraper/classifier/notifier (apps/worker). Plain HTTP, no browser.
+  # WORKER_NOTIFY_DRY_RUN=1 records alerts without sending them.
   worker:
     build:
       context: .
@@ -83,27 +71,11 @@ services:
       DB_PASSWORD: postgres
       DB_NAME: craigslist
       DB_PORT: 5432
-      NOTIFY_DRY_RUN: ${WORKER_NOTIFY_DRY_RUN:-1}
+      NOTIFY_DRY_RUN: ${WORKER_NOTIFY_DRY_RUN:-0}
     restart: unless-stopped
     depends_on:
       migrate:
         condition: service_completed_successfully
-
-  scraper:
-    build: .
-    command: python -m backend.main
-    env_file: .env
-    environment:
-      DB_HOST: db
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: craigslist
-      SELENIUM_REMOTE_URL: http://selenium:4444
-    depends_on:
-      db:
-        condition: service_healthy
-      selenium:
-        condition: service_healthy
 
   # Optional public tunnel. OFF by default — only starts with:
   #   docker compose --profile tunnel up

@@ -56,7 +56,7 @@ describe.skipIf(!testDb)("auth core (Postgres)", () => {
     await conn.db.execute(sql`truncate users, sessions, login_tokens restart identity cascade`);
     const [u] = await conn.db
       .insert(users)
-      .values({ name: "Jo", notifyChannel: "ntfy", notifyTarget: "jo-topic", editToken: "legacy-tok", createdAt: "x" })
+      .values({ name: "Jo", notifyChannel: "ntfy", notifyTarget: "jo-topic", editToken: hashToken("legacy-tok") })
       .returning();
     userId = u!.id;
   });
