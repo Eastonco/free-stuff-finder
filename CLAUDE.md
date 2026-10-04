@@ -31,7 +31,7 @@ pnpm dev           # turbo → next dev on :8000
 pnpm build         # turbo → next build (standalone output)
 pnpm typecheck     # tsc --noEmit across packages
 pnpm test          # vitest across packages
-TEST_DB_PORT=55432 TEST_DB_NAME=workertest pnpm test   # also run the Postgres integration tests (wipes that DB; name must contain "test")
+TEST_DB_PORT=55432 TEST_DB_NAME=workertest pnpm test --concurrency=1   # also run the Postgres integration tests (wipes that DB; name must contain "test"; one package at a time since web and worker share it)
 pnpm lint          # biome check (pnpm format to auto-fix)
 pnpm --filter @fsf/worker dev                     # worker with reload (needs OPENROUTER_API_KEY; NOTIFY_DRY_RUN=1 to send nothing)
 pnpm --filter @fsf/db db:generate --name <what>   # write a migration after editing packages/db/src/schema.ts
