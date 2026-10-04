@@ -1,21 +1,23 @@
 // AI gate: does this free item match what the user wants?
 //
-// Title + photo + the post's description (fetched from its page). Structured
-// outputs guarantee the reply shape, so there's no JSON scraping.
+// Claude Haiku via OpenRouter's chat API: title + photo + the post's
+// description. A JSON-schema response format pins the reply's shape; zod
+// checks it on the way in.
 //
 // Fails OPEN: on any error the verdict is 'want' (with `error` set) so a
 // transient hiccup never silently drops a real find — an extra notification is
 // cheap, a missed free couch is not. The caller decides whether to retry
 // (`error.retryable`) and whether fail-open verdicts may still alert (see
 // createFailureWindow), so a dead API key can't page everyone about everything.
-import Anthropic from "@anthropic-ai/sdk";
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import type { OpenRouter } from "@openrouter/sdk";
+import type { ChatContentItems } from "@openrouter/sdk/models";
 import { z } from "zod";
 
+import { errorKind, isBadRequest, isRetryableOpenRouterError } from "./openrouter-errors";
 import type { Verdict } from "./types";
 
-/** The one model id the app uses for both classification and the pickup draft. */
-export const CLASSIFIER_MODEL = "claude-haiku-4-5";
+/** The model the app uses for classification and the pickup draft (an OpenRouter alias that tracks the latest Haiku). */
+export const CLASSIFIER_MODEL = "~anthropic/claude-haiku-latest";
 
 const SYSTEM =
   "You filter free items for one person. Given what they're looking for and a single " +
@@ -26,9 +28,27 @@ const SYSTEM =
 
 const VerdictSchema = z.object({
   label: z.enum(["want", "skip"]),
-  score: z.number().int(),
+  score: z.number(),
   reason: z.string(),
 });
+
+const RESPONSE_FORMAT = {
+  type: "json_schema" as const,
+  jsonSchema: {
+    name: "verdict",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        label: { type: "string", enum: ["want", "skip"] },
+        score: { type: "integer", description: "0-100 confidence that it matches" },
+        reason: { type: "string", description: "under 12 words" },
+      },
+      required: ["label", "score", "reason"],
+      additionalProperties: false,
+    },
+  },
+};
 
 export type ClassifyInput = {
   title: string;
@@ -39,23 +59,36 @@ export type ClassifyInput = {
 
 export type Classifier = (input: ClassifyInput) => Promise<Verdict>;
 
-export function createClassifier(opts: { client: Anthropic; model?: string }): Classifier {
+/** Text of the first choice, whether the provider returned a string or content parts. */
+export function chatText(content: string | ChatContentItems[] | null | undefined): string {
+  if (typeof content === "string") return content;
+  return (content ?? []).flatMap((part) => (part.type === "text" ? [part.text] : [])).join("");
+}
+
+export function createClassifier(opts: { client: Pick<OpenRouter, "chat">; model?: string }): Classifier {
   const { client, model = CLASSIFIER_MODEL } = opts;
 
   async function ask(input: ClassifyInput, withImage: boolean) {
-    const content: Anthropic.ContentBlockParam[] = [];
-    if (withImage && input.imageUrl) content.push({ type: "image", source: { type: "url", url: input.imageUrl } });
-    content.push({ type: "text", text: userText(input) });
+    const content: ChatContentItems[] = [{ type: "text", text: userText(input) }];
+    if (withImage && input.imageUrl) content.push({ type: "image_url", imageUrl: { url: input.imageUrl } });
 
-    const res = await client.messages.parse({
-      model,
-      max_tokens: 256,
-      system: SYSTEM,
-      messages: [{ role: "user", content }],
-      output_config: { format: zodOutputFormat(VerdictSchema) },
+    const res = await client.chat.send({
+      chatRequest: {
+        model,
+        maxTokens: 256,
+        stream: false,
+        responseFormat: RESPONSE_FORMAT,
+        messages: [
+          { role: "system", content: SYSTEM },
+          { role: "user", content },
+        ],
+      },
     });
-    if (!res.parsed_output) throw new UnparseableReply(res.stop_reason);
-    return res.parsed_output;
+    if (!("choices" in res)) throw new Error("unexpected streaming response");
+    const text = chatText(res.choices[0]?.message.content);
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    return VerdictSchema.parse(JSON.parse(start >= 0 ? text.slice(start, end + 1) : text));
   }
 
   return async function classify(input) {
@@ -64,8 +97,8 @@ export function createClassifier(opts: { client: Anthropic; model?: string }): C
       try {
         out = await ask(input, true);
       } catch (err) {
-        // A dead or unfetchable image URL is a 400; the text alone is still worth judging.
-        if (input.imageUrl && err instanceof Anthropic.BadRequestError) out = await ask(input, false);
+        // A dead or unfetchable image URL is a 4xx; the text alone is still worth judging.
+        if (input.imageUrl && isBadRequest(err)) out = await ask(input, false);
         else throw err;
       }
       return {
@@ -79,7 +112,7 @@ export function createClassifier(opts: { client: Anthropic; model?: string }): C
         label: "want",
         score: 0,
         reason: `classification unavailable (${kind})`,
-        error: { kind, retryable: isRetryable(err) },
+        error: { kind, retryable: isRetryableOpenRouterError(err) },
       };
     }
   };
@@ -89,23 +122,4 @@ function userText(i: ClassifyInput): string {
   const lines = [`What I want: ${i.preference}`, "", `Free item title: ${i.title}`];
   if (i.description) lines.push("", `Description from the post:\n${i.description}`);
   return lines.join("\n");
-}
-
-class UnparseableReply extends Error {
-  constructor(stopReason: string | null) {
-    super(`model reply did not match the verdict schema (stop_reason: ${stopReason})`);
-    this.name = "UnparseableReply";
-  }
-}
-
-function isRetryable(err: unknown): boolean {
-  return (
-    err instanceof Anthropic.RateLimitError ||
-    err instanceof Anthropic.InternalServerError ||
-    err instanceof Anthropic.APIConnectionError
-  );
-}
-
-function errorKind(err: unknown): string {
-  return err instanceof Error ? err.constructor.name : typeof err;
 }

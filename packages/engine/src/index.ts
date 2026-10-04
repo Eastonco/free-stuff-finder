@@ -1,4 +1,5 @@
 export * from "./classify";
+export * from "./classify-openrouter";
 export * from "./failures";
 export * from "./filter";
 export * from "./http";

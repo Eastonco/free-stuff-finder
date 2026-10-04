@@ -3,17 +3,19 @@
 //
 //   schedule (cron, every minute) → scrape-url (per distinct URL)
 //     → match (per new search×post pair) → notify (per 'want')
-import Anthropic from "@anthropic-ai/sdk";
 import { createDb, dbConfigFromEnv } from "@fsf/db";
 import { runMigrations } from "@fsf/db/migrate";
 import {
+  type Classifier,
   createClassifier,
   createFailureWindow,
   createHostThrottle,
   createNotifier,
+  createOpenRouterClassifier,
   DEFAULT_USER_AGENT,
   fetchHtml,
 } from "@fsf/engine";
+import { OpenRouter } from "@openrouter/sdk";
 import { type Job, PgBoss } from "pg-boss";
 
 import { loadConfig } from "./config";
@@ -28,6 +30,16 @@ const config = loadConfig();
 const { db, sql } = createDb({ max: config.SCRAPE_CONCURRENCY + config.MATCH_CONCURRENCY + 2 });
 await runMigrations(db);
 
+const openrouter = new OpenRouter({ apiKey: config.OPENROUTER_API_KEY, timeoutMs: 30_000 });
+const classify: Classifier =
+  config.CLASSIFIER === "jev"
+    ? createOpenRouterClassifier({
+        client: openrouter,
+        model: config.CLASSIFIER_MODEL || undefined,
+        wantThreshold: config.JEV_WANT_THRESHOLD,
+      })
+    : createClassifier({ client: openrouter, model: config.CLASSIFIER_MODEL || undefined });
+
 const throttle = createHostThrottle(config.HOST_MIN_INTERVAL_MS);
 const userAgent = config.SCRAPER_USER_AGENT || DEFAULT_USER_AGENT;
 
@@ -39,9 +51,7 @@ const ctx: Ctx = {
     await throttle(url);
     return fetchHtml(url, { userAgent });
   },
-  classify: createClassifier({
-    client: new Anthropic({ apiKey: config.ANTHROPIC_API_KEY, maxRetries: 2, timeout: 30_000 }),
-  }),
+  classify,
   notify: createNotifier({ ntfyServer: config.NTFY_SERVER, twilio: config.twilio }),
   failures: createFailureWindow({
     windowMs: config.FAIL_OPEN_WINDOW_MINUTES * 60_000,
@@ -93,6 +103,7 @@ await boss.send(QUEUES.schedule.name, {}); // don't wait up to a minute for the 
 
 log.info("worker started", {
   dryRun: config.NOTIFY_DRY_RUN,
+  classifier: config.CLASSIFIER,
   scrapeIntervalSeconds: config.SCRAPE_INTERVAL_SECONDS,
   sms: Boolean(config.twilio),
 });
