@@ -1,4 +1,4 @@
-# free-stuff-finder
+# free-stuff finder
 
 Scrapes **free** listings, runs each new post through **Claude (Haiku)**
 to decide whether you'd actually want it, and pushes the keepers to you via
@@ -123,17 +123,17 @@ cloned copy of this repo never carries someone else's tunnel.
 1. Go to the public URL, enter the **invite code** (`INVITE_CODE` from `.env`).
 2. Fill in the profile:
    - **Notify via** — ntfy (pick an unguessable topic, subscribe to it in the ntfy app), SMS (+phone), or a Discord webhook URL.
-   - **Search URLs** — one per line. Open the source site's **free** section, set your
+   - **Search URLs** — one per line. On the **free** section, set your
      area/radius (the map filter — the default 60 mi is way too wide), make sure sort
-     is *newest*, and copy the URL. The site's search operators work too.
+     is *newest*, and copy the URL.
    - **What are you looking for?** — plain English, e.g. *"a vintage road bike around
      56cm, no kids bikes, no project bikes."* This is what the AI judges each item against.
    - **Never alert me about** — optional comma-separated words for a hard skip (cheap
      pre-filter that runs before the AI, so obvious junk costs no API call).
 3. You get a private edit link — bookmark it to tweak your profile later.
 
-Only URLs from the supported source site are accepted (the scraper opens them in a
-real browser, so this is enforced server-side).
+Only URLs are accepted (the scraper opens them in a real browser, so this
+is enforced server-side).
 
 # Notes
 - Old SMS-command control and the per-person JSON config files are gone — the web
