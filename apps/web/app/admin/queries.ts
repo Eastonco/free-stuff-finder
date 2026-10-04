@@ -1,10 +1,10 @@
 // Shared admin data access. Server-only — imported by admin pages (all force-dynamic).
 // N+1 count queries per search mirror the original page and are fine at this scale.
 // ponytail: swap to grouped aggregates if a single page ever fans out to hundreds of searches.
-import { and, count, desc, eq, max } from "drizzle-orm";
 
+import { listings, scraperStatus, searches, users } from "@fsf/db";
+import { and, count, desc, eq, max } from "drizzle-orm";
 import { db } from "@/db";
-import { listings, scraperStatus, searches, users } from "@/db/schema";
 
 export type Search = typeof searches.$inferSelect;
 export type Listing = typeof listings.$inferSelect;

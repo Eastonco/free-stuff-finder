@@ -10,18 +10,13 @@ A free-listings scraper + self-serve web app. A Python loop scrapes each user's 
 
 **The backend (Python, `backend/`) and web app (Next.js, `apps/web/`) are independent services that share nothing but the Postgres schema.** There is no API between them. They communicate entirely through the database.
 
-- **Python owns the schema.** `backend/models.py` (SQLAlchemy) defines the tables; `init_db()` (`Base.metadata.create_all`) creates them on the scraper's first run. The scraper writes `listings`, heartbeats `scraper_status`, and reads `users`/`searches`.
-- **The web app uses a typed mirror.** `apps/web/db/schema.ts` is a hand-kept Drizzle copy of the Python schema, regenerated from the live DB with `pnpm --filter @fsf/web db:pull`. The web app reads/writes `users`/`searches` directly via Drizzle.
+- **`@fsf/db` (`packages/db`) owns the schema.** `packages/db/src/schema.ts` (Drizzle) is the single source of truth; numbered SQL migrations live in `packages/db/migrations` and are applied by `pnpm --filter @fsf/db db:migrate` (the compose `migrate` service runs it before web starts). The web app imports tables from `@fsf/db`.
+- **Python is a legacy reader/writer** (being replaced by the TypeScript worker — see the refactor plan). `backend/models.py` still calls `create_all`, which only creates *missing* tables, so it is harmless against a migrated DB. The scraper writes `listings`, heartbeats `scraper_status`, and reads `users`/`searches`.
 
 ### Consequences you must respect
 
-- **A schema change is a two-file change:** edit `backend/models.py` AND `apps/web/db/schema.ts` to keep them in sync (or run `pnpm --filter @fsf/web db:pull` after the Python side is live).
-- **`create_all` never alters existing tables.** Adding a column to a table that already exists in a running DB requires a manual migration, e.g.:
-  ```sh
-  docker compose exec -T db psql -U postgres -d craigslist -c \
-    "ALTER TABLE <table> ADD COLUMN IF NOT EXISTS <col> <type> NOT NULL DEFAULT <x>;"
-  ```
-  Without this, both the scraper and the web queries will error on the missing column.
+- **To change the schema:** edit `packages/db/src/schema.ts`, run `pnpm --filter @fsf/db db:generate --name <what>`, review the generated SQL, commit both. CI fails if `schema.ts` has changes with no migration. While `backend/` still exists, mirror column changes the scraper touches in `backend/models.py` too.
+- **Migration 0000 is a baseline** matching what `create_all` produced, down to constraint names. `db:migrate` detects a pre-migrations DB (tables exist, no `drizzle.__drizzle_migrations`) and records 0000 as applied instead of running it. Never edit an applied migration — add a new one.
 
 ## Commands
 
@@ -42,7 +37,8 @@ pnpm build         # turbo → next build (standalone output)
 pnpm typecheck     # tsc --noEmit across packages
 pnpm test          # vitest across packages
 pnpm lint          # biome check (pnpm format to auto-fix)
-pnpm --filter @fsf/web db:pull   # regenerate apps/web/db/schema.ts from the live Postgres
+pnpm --filter @fsf/db db:generate --name <what>   # write a migration after editing packages/db/src/schema.ts
+pnpm --filter @fsf/db db:migrate                  # apply pending migrations (uses DB_* env)
 ```
 CI (`.github/workflows/ci.yml`) runs lint, typecheck, test and build on every PR.
 
@@ -69,7 +65,7 @@ Scraping is Selenium/Firefox parsing the source site's gallery cards (`parse_lis
 Next.js 15 App Router, React 19, Radix Themes, Drizzle + `postgres`. All admin pages are server components marked `force-dynamic` (live DB reads). Mutations are server actions, not API routes.
 
 - **`middleware.ts` runs two separate gates:** `/admin/*` is HTTP Basic Auth (`admin` / `ADMIN_PASSWORD`); everything else requires the invite-code cookie set by `/gate` (`INVITE_CODE`). Both use a hand-rolled constant-time compare because middleware runs on the Edge runtime (no `node:crypto`). Leaving `ADMIN_PASSWORD` unset locks `/admin` to everyone.
-- **`db/index.ts`** caches the postgres pool on `globalThis` across dev hot-reloads to avoid connection leaks; reads the same `DB_*` env vars as the Python side.
+- **`db/index.ts`** builds the pool via `createDb()` from `@fsf/db` (size: `DB_POOL_MAX`, default 10) and caches it on `globalThis` across dev hot-reloads to avoid connection leaks; reads the same `DB_*` env vars as the Python side.
 - **Admin data layer:** `app/admin/queries.ts` (reads) and `app/admin/actions.ts` (server-action writes). List/overview pages paginate via `?page=N` URL params (`app/admin/pager.tsx`), deriving "has next page" by fetching one row past the page size (no count query).
 
 ## Config

@@ -1,11 +1,10 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
+import { searches, users } from "@fsf/db";
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-
 import { db } from "@/db";
-import { searches, users } from "@/db/schema";
 import { validate } from "@/lib/validate";
 
 export type FormValues = {

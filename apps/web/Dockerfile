@@ -21,6 +21,12 @@ WORKDIR /app/apps/web
 ENV PORT=8000 HOSTNAME=0.0.0.0
 CMD ["pnpm", "dev"]
 
+# One-shot schema migrator (compose `migrate` service). Reuses the pruned
+# install, which already includes @fsf/db and its drizzle tooling.
+FROM deps AS migrate
+COPY --from=pruner /app/out/full/ .
+CMD ["pnpm", "--filter", "@fsf/db", "db:migrate"]
+
 FROM deps AS build
 COPY --from=pruner /app/out/full/ .
 ENV NEXT_TELEMETRY_DISABLED=1

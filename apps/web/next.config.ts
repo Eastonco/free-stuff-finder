@@ -6,6 +6,8 @@ import type { NextConfig } from "next";
 const config: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.join(__dirname, "../.."),
+  // workspace packages ship TypeScript source, not built JS
+  transpilePackages: ["@fsf/db"],
 };
 
 export default config;

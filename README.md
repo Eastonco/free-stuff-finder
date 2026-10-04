@@ -92,7 +92,7 @@ flooded — alerts start on the next cycle.
 ```sh
 # from the repo root; needs Node 22 (see .nvmrc) and pnpm
 pnpm install
-pnpm --filter @fsf/web db:pull   # regenerate apps/web/db/schema.ts after schema changes
+pnpm --filter @fsf/db db:migrate # apply schema migrations (packages/db/migrations)
 pnpm dev          # or: pnpm build && pnpm --filter @fsf/web start  (both serve on :8000)
 ```
 The web app is a Next.js project in `apps/web`. It talks to Postgres directly using

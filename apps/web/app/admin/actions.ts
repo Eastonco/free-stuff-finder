@@ -1,11 +1,10 @@
 "use server";
 
+import { scraperStatus, searches, users } from "@fsf/db";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-
 import { db } from "@/db";
-import { scraperStatus, searches, users } from "@/db/schema";
 import { validateNotify, validatePickup, validateSearch } from "@/lib/validate";
 
 // empty string → null so the DB column stays clean

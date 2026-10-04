@@ -1,6 +1,6 @@
+import { searches, users } from "@fsf/db";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { searches, users } from "@/db/schema";
 import { type FormValues, updateProfile } from "../../actions";
 import ProfileForm from "../../profile-form";
 

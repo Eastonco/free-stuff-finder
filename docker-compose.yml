@@ -30,6 +30,24 @@ services:
       timeout: 3s
       retries: 12
 
+  # Applies Drizzle migrations (packages/db/migrations) then exits; web waits
+  # for it. Safe on the legacy create_all DB — it baselines instead of re-creating.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: migrate
+    environment:
+      DB_HOST: db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: craigslist
+      DB_PORT: 5432
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
   web:
     # Next.js app (apps/web). Talks to the db
     # service directly; the Postgres schema is the only contract with the scraper.
@@ -47,8 +65,8 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     develop:
       watch:
         - path: ./apps/web/app
