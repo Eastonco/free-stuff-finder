@@ -18,12 +18,15 @@ export const OPENROUTER_CLASSIFIER_MODEL = "~typesafe/jev-latest";
 
 const MATCH_QUESTION = {
   type: "noul" as const,
+  // Read the request the way the person means it: broad wording ("anything useful",
+  // "anything I can resell") covers whatever fits that spirit, not just listed examples.
   instructions:
-    "Is this free item something this person genuinely wants, given what_they_want? " +
-    "Be strict: junk, wrong-category, and vague matches are no.",
+    "Would this person plausibly want this free item, given what_they_want? Read their request " +
+    "the way they mean it: broad phrases like 'anything useful' or 'anything I can resell' cover " +
+    "any item that fits that spirit, not only the examples they list.",
   criteria: {
-    true: "Clearly fits what they described",
-    false: "Doesn't fit: wrong category, junk, or only a vague match",
+    true: "Fits their request, including its broad parts (useful, valuable, resellable, or something they'd like)",
+    false: "Doesn't fit their request, or is junk, worthless, or unusable",
   },
 };
 
