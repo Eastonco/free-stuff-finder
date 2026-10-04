@@ -184,7 +184,7 @@ export const notifications = pgTable("notifications", {
   sentAt: tstz("sent_at"),
 });
 
-/** Single-row heartbeat + health for the TS worker (scraper_status stays the Python loop's). */
+/** Single-row heartbeat, health and kill-switch for the worker. */
 export const workerStatus = pgTable("worker_status", {
   id: integer("id").primaryKey().default(1),
   lastTickAt: tstz("last_tick_at"),
@@ -192,6 +192,8 @@ export const workerStatus = pgTable("worker_status", {
   classifierFailures: integer("classifier_failures").notNull().default(0), // in the current window
   failOpenAlertsPaused: boolean("fail_open_alerts_paused").notNull().default(false),
   notifyDryRun: boolean("notify_dry_run").notNull().default(false),
+  /** Admin kill-switch: when false the worker skips scraping (the Overview toggle flips it). */
+  enabled: boolean("enabled").notNull().default(true),
 });
 
 // ---------------------------------------------------------------------------
