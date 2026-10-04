@@ -1,0 +1,55 @@
+version: 2
+updates:
+  # pnpm workspace: one entry at the root covers apps/* and packages/*.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      next-react:
+        patterns: ["next", "eslint-config-next", "react", "react-dom", "@types/react", "@types/react-dom", "@radix-ui/*"]
+      database:
+        patterns: ["drizzle-orm", "drizzle-kit", "postgres", "pg-boss"]
+      ai:
+        patterns: ["@openrouter/sdk"]
+      tooling:
+        patterns: ["typescript", "vitest", "@vitest/*", "@biomejs/biome", "turbo", "tsx", "@types/node"]
+      # everything else, minor/patch only; majors arrive as individual PRs
+      other-minor-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Base images. Node stays on the major in .nvmrc and Postgres on the major the
+  # data directory was created with (a major bump needs a dump/restore), so
+  # those only get minor/patch updates.
+  - package-ecosystem: docker
+    directories: [/apps/web, /apps/worker]
+    schedule:
+      interval: monthly
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+    groups:
+      docker-images:
+        patterns: ["*"]
+
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: monthly
+    ignore:
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+    groups:
+      compose-images:
+        patterns: ["*"]
