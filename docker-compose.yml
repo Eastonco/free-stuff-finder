@@ -4,8 +4,19 @@
 # Secrets (OPENROUTER_API_KEY, INVITE_CODE, APP_URL, Twilio) come from .env via env_file.
 # DB wiring is set here so it works inside the compose network.
 
+# Every service: restart after a crash or a Docker/host restart, and cap log
+# files (json-file has no limit by default) at 3 x 10 MB.
+x-defaults: &defaults
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
   db:
+    <<: *defaults
     image: postgres:16
     environment:
       POSTGRES_USER: postgres
@@ -19,11 +30,14 @@ services:
       timeout: 3s
       retries: 12
     ports:
-      - "5432:5432"
+      # localhost only: lets host tools (grant-admin, eval) connect without
+      # exposing the database to the rest of the network
+      - "127.0.0.1:5432:5432"
 
   # Applies Drizzle migrations (packages/db/migrations) then exits; web waits
   # for it. Safe on the legacy create_all DB — it baselines instead of re-creating.
   migrate:
+    <<: *defaults
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -37,9 +51,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    restart: "no"
+    restart: "no" # one-shot
 
   web:
+    <<: *defaults
     # Next.js app (apps/web). Talks to the db
     # service directly; the Postgres schema is the only contract with the scraper.
     build:
@@ -61,6 +76,7 @@ services:
   # The scraper/classifier/notifier (apps/worker). Plain HTTP, no browser.
   # WORKER_NOTIFY_DRY_RUN=1 records alerts without sending them.
   worker:
+    <<: *defaults
     build:
       context: .
       dockerfile: apps/worker/Dockerfile
@@ -72,7 +88,6 @@ services:
       DB_NAME: craigslist
       DB_PORT: 5432
       NOTIFY_DRY_RUN: ${WORKER_NOTIFY_DRY_RUN:-0}
-    restart: unless-stopped
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -82,9 +97,9 @@ services:
   # Drop your tunnel creds + config in ./cloudflared/ (see cloudflared/config.example.yml).
   # Anyone running a copy can ignore this entirely and use localhost:8000.
   cloudflared:
+    <<: *defaults
     image: cloudflare/cloudflared:latest
     profiles: ["tunnel"]
-    restart: unless-stopped
     command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
     volumes:
       - ./cloudflared:/etc/cloudflared:ro
