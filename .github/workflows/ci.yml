@@ -56,6 +56,13 @@ jobs:
         run: |
           psql -h localhost -U postgres -c "create database workertest"
           pnpm --filter @fsf/worker test
+      - name: Web auth integration tests
+        env:
+          TEST_DB_NAME: webtest
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -c "create database webtest"
+          pnpm --filter @fsf/web test
       - name: Schema has no un-generated changes
         run: |
           pnpm --filter @fsf/db db:generate

@@ -48,14 +48,16 @@ Copy `.env.example` to `.env` and fill it in (`.env` is gitignored):
 ```sh
 cp .env.example .env
 ```
-At minimum set `OPENROUTER_API_KEY`, `INVITE_CODE`, `ADMIN_PASSWORD`, and the `DB_*` values. (`ANTHROPIC_API_KEY` is only needed while the legacy Python scraper runs.)
+At minimum set `OPENROUTER_API_KEY`, `INVITE_CODE`, `APP_URL` (the public URL sign-in links point to), and the `DB_*` values. (`ANTHROPIC_API_KEY` is only needed while the legacy Python scraper runs.)
 
 ## Admin dashboard
-`GET /admin` (e.g. http://localhost:8000/admin) shows every profile, their notify
-settings, per-search scrape stats, scraper liveness (a heartbeat the loop writes
-each cycle), and recent classifications. It's read-only and gated by **HTTP Basic
-Auth** — username `admin`, password = `ADMIN_PASSWORD` from `.env`. Leave
-`ADMIN_PASSWORD` unset and `/admin` is locked to everyone.
+There are no admin passwords. Create your own account like anyone else, then mark
+it admin once:
+```sh
+pnpm --filter @fsf/db grant-admin <your ntfy topic | phone | user id>
+```
+Admin accounts see an **Admin** tab with the overview, every search, user and listing,
+and worker health.
 
 # Run with Docker (recommended — works on Mac, Pi, anywhere)
 
@@ -120,20 +122,20 @@ cloned copy of this repo never carries someone else's tunnel.
 
 # How you and friends use it
 
-1. Go to the public URL, enter the **invite code** (`INVITE_CODE` from `.env`).
-2. Fill in the profile:
-   - **Notify via** — ntfy (pick an unguessable topic, subscribe to it in the ntfy app), SMS (+phone), or a Discord webhook URL.
-   - **Search URLs** — one per line. On the **free** section, set your
-     area/radius (the map filter — the default 60 mi is way too wide), make sure sort
+1. Go to the public URL and choose **Create an account**. Enter the **invite code**
+   (`INVITE_CODE` from `.env`), where alerts should go, and a first search:
+   - **Send alerts to**: ntfy (pick an unguessable topic and subscribe to it in the ntfy app), SMS (+phone), or a Discord webhook URL.
+   - **Search URLs**: one per line. On the **free** section, set your
+     area/radius (the map filter; the default 60 mi is way too wide), make sure sort
      is *newest*, and copy the URL.
-   - **What are you looking for?** — plain English, e.g. *"a vintage road bike around
+   - **What are you looking for?**: plain English, e.g. *"a vintage road bike around
      56cm, no kids bikes, no project bikes."* This is what the AI judges each item against.
-   - **Never alert me about** — optional comma-separated words for a hard skip (cheap
+   - **Never alert me about**: optional comma-separated words for a hard skip (cheap
      pre-filter that runs before the AI, so obvious junk costs no API call).
-3. You get a private edit link — bookmark it to tweak your profile later.
-
-Only URLs are accepted (the scraper opens them in a real browser, so this
-is enforced server-side).
+2. You're signed in. **My searches** lets you add, edit, pause and delete searches.
+   **Account** changes where alerts go and sends a test alert.
+3. To sign in again, or on another device, enter your alert destination on **Sign in**.
+   A one-time link arrives in the same place your alerts do.
 
 # Notes
 - Old SMS-command control and the per-person JSON config files are gone — the web

@@ -70,15 +70,17 @@ Scraping is Selenium/Firefox parsing the source site's gallery cards (`parse_lis
 
 ## Web app structure (`apps/web`)
 
-Next.js 15 App Router, React 19, Radix Themes, Drizzle + `postgres`. All admin pages are server components marked `force-dynamic` (live DB reads). Mutations are server actions, not API routes.
+Next.js 15 App Router, React 19, Radix Themes, Drizzle + `postgres`. Signed-in pages are dynamic server components with live DB reads. Mutations are server actions, not API routes.
 
-- **`middleware.ts` runs two separate gates:** `/admin/*` is HTTP Basic Auth (`admin` / `ADMIN_PASSWORD`); everything else requires the invite-code cookie set by `/gate` (`INVITE_CODE`). Both use a hand-rolled constant-time compare because middleware runs on the Edge runtime (no `node:crypto`). Leaving `ADMIN_PASSWORD` unset locks `/admin` to everyone.
+- **Accounts and sign-in (`lib/auth/`):** there are no passwords. A user signs in by entering their alert destination (ntfy topic, phone or Discord webhook), and a one-time link (15 min, 60 s cooldown) is sent *to that destination* via `@fsf/engine`'s notifier. The link page only shows a button; the token is used up on POST, because chat link previews would otherwise consume it. Sessions last 30 days in an httpOnly cookie. Both tokens are stored only as sha256 hashes (`sessions`, `login_tokens`). `core.ts` is framework-free and tested against Postgres; `session.ts` holds the cookie and the `requireUser()`/`requireAdmin()` guards. Creating an account needs `INVITE_CODE`; signing in doesn't. Old `/profile/<edit_token>` links still sign their owner in.
+- **Authorization lives in the server actions, not just the layouts.** Server actions are public POST endpoints, so every action calls `requireUser()`/`requireAdmin()` itself and checks ownership (admins may edit anyone's). `users.is_admin` is granted with `pnpm --filter @fsf/db grant-admin <target|id>`. Admin pages 404 for non-admins.
+- **Routes:** `app/(public)` holds the landing page, `/signin`, `/signup` and `/auth/verify`; `app/(app)` holds the signed-in shell with `/searches`, `/account` and `/admin/*`. Forms are shared between the user and admin sides (`components/`). Sign-in links use `APP_URL` (required in production, so a spoofed Host header can't redirect them). `AUTH_DEV_LOG_LINKS=1` prints links instead of sending them, in dev only.
 - **`db/index.ts`** builds the pool via `createDb()` from `@fsf/db` (size: `DB_POOL_MAX`, default 10) and caches it on `globalThis` across dev hot-reloads to avoid connection leaks; reads the same `DB_*` env vars as the Python side.
 - **Admin data layer:** `app/admin/queries.ts` (reads) and `app/admin/actions.ts` (server-action writes). List/overview pages paginate via `?page=N` URL params (`app/admin/pager.tsx`), deriving "has next page" by fetching one row past the page size (no count query).
 
 ## Config
 
-All runtime config lives in `.env` at repo root (gitignored; copy from `.env.example`). Key vars: `OPENROUTER_API_KEY` (TS worker + web), `ANTHROPIC_API_KEY` (legacy Python only), `INVITE_CODE`, `ADMIN_PASSWORD`, `DB_*`. Compose overrides `DB_HOST`/`SELENIUM_REMOTE_URL` for the container network, so the `DB_*` values in `.env` only matter for bare-metal runs. DB defaults are `postgres`/`postgres`/`craigslist` on `:5432`; web serves on `:8000`.
+All runtime config lives in `.env` at repo root (gitignored; copy from `.env.example`). Key vars: `OPENROUTER_API_KEY` (TS worker + web), `ANTHROPIC_API_KEY` (legacy Python only), `INVITE_CODE`, `APP_URL`, `DB_*`. Compose overrides `DB_HOST`/`SELENIUM_REMOTE_URL` for the container network, so the `DB_*` values in `.env` only matter for bare-metal runs. DB defaults are `postgres`/`postgres`/`craigslist` on `:5432`; web serves on `:8000`.
 
 ## Code style
 
