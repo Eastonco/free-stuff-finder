@@ -31,10 +31,11 @@ services:
       retries: 12
 
   web:
-    # Next.js app (replaces the old FastAPI/uvicorn server). Talks to the db
+    # Next.js app (apps/web). Talks to the db
     # service directly; the Postgres schema is the only contract with the scraper.
     build:
-      context: ./web
+      context: .
+      dockerfile: apps/web/Dockerfile
       target: dev
     env_file: .env
     environment:
@@ -50,24 +51,24 @@ services:
         condition: service_healthy
     develop:
       watch:
-        - path: ./web/app
+        - path: ./apps/web/app
           action: sync
-          target: /app/app
-        - path: ./web/db
+          target: /app/apps/web/app
+        - path: ./apps/web/db
           action: sync
-          target: /app/db
-        - path: ./web/lib
+          target: /app/apps/web/db
+        - path: ./apps/web/lib
           action: sync
-          target: /app/lib
-        - path: ./web/middleware.ts
+          target: /app/apps/web/lib
+        - path: ./apps/web/middleware.ts
           action: sync+restart
-          target: /app/middleware.ts
-        - path: ./web/next.config.ts
+          target: /app/apps/web/middleware.ts
+        - path: ./apps/web/next.config.ts
           action: sync+restart
-          target: /app/next.config.ts
-        - path: ./web/package.json
+          target: /app/apps/web/next.config.ts
+        - path: ./apps/web/package.json
           action: rebuild
-        - path: ./web/package-lock.json
+        - path: ./pnpm-lock.yaml
           action: rebuild
 
   scraper:

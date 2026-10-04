@@ -10,7 +10,7 @@ Config lives in **Postgres**, not JSON files: the web form writes it, the scrape
 loop reads everyone's active searches each cycle.
 
 ```
-cloudflared (freestuff.yourdomain.com) ──► Next.js web app (./web) ─────┐
+cloudflared (freestuff.yourdomain.com) ──► Next.js web app (apps/web) ─────┐
                                                                  ├─► Postgres
         scraper loop (main.py) ──────────────────────────────────┘   users / searches
               │                                                       listings / reactions
@@ -90,12 +90,12 @@ flooded — alerts start on the next cycle.
 
 **2. The web app** (so you + friends can self-serve)
 ```sh
-cd web
-npm install
-npm run db:pull   # generate db/schema.ts from the live Postgres (one-time / after schema changes)
-npm run dev       # or: npm run build && npm run start  (both serve on :8000)
+# from the repo root; needs Node 22 (see .nvmrc) and pnpm
+pnpm install
+pnpm --filter @fsf/web db:pull   # regenerate apps/web/db/schema.ts after schema changes
+pnpm dev          # or: pnpm build && pnpm --filter @fsf/web start  (both serve on :8000)
 ```
-The web app is a Next.js project in `./web`. It talks to Postgres directly using
+The web app is a Next.js project in `apps/web`. It talks to Postgres directly using
 the same `DB_*` env vars as the scraper.
 
 ## (Optional) Expose the web app with a Cloudflare Tunnel

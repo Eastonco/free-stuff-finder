@@ -13,3 +13,12 @@ __pycache__
 # tunnel creds/config — keep only the example
 cloudflared/*
 !cloudflared/config.example.yml
+
+# node / monorepo
+node_modules
+.turbo
+*.tsbuildinfo
+
+# local scratch
+.playwright-mcp/
+/*.png

@@ -4,18 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A free-listings scraper + self-serve web app. A Python loop scrapes each user's saved searches, runs every new free item through Claude Haiku (`claude-haiku-4-5`) to judge whether they'd want it, and notifies them via ntfy/SMS/Discord. A Next.js app lets users manage their profile and gives an admin dashboard. Designed to run on a Raspberry Pi.
+A free-listings scraper + self-serve web app. A Python loop scrapes each user's saved searches, runs every new free item through Claude Haiku (`claude-haiku-4-5`) to judge whether they'd want it, and notifies them via ntfy/SMS/Discord. A Next.js app (`apps/web`) lets users manage their profile and gives an admin dashboard. Designed to run on a Raspberry Pi.
 
 ## The one architectural fact that explains everything
 
-**The backend (Python) and web app (Next.js) are independent services that share nothing but the Postgres schema.** There is no API between them. They communicate entirely through the database.
+**The backend (Python, `backend/`) and web app (Next.js, `apps/web/`) are independent services that share nothing but the Postgres schema.** There is no API between them. They communicate entirely through the database.
 
 - **Python owns the schema.** `backend/models.py` (SQLAlchemy) defines the tables; `init_db()` (`Base.metadata.create_all`) creates them on the scraper's first run. The scraper writes `listings`, heartbeats `scraper_status`, and reads `users`/`searches`.
-- **The web app uses a typed mirror.** `web/db/schema.ts` is a hand-kept Drizzle copy of the Python schema, regenerated from the live DB with `npm run db:pull`. The web app reads/writes `users`/`searches` directly via Drizzle.
+- **The web app uses a typed mirror.** `apps/web/db/schema.ts` is a hand-kept Drizzle copy of the Python schema, regenerated from the live DB with `pnpm --filter @fsf/web db:pull`. The web app reads/writes `users`/`searches` directly via Drizzle.
 
 ### Consequences you must respect
 
-- **A schema change is a two-file change:** edit `backend/models.py` AND `web/db/schema.ts` to keep them in sync (or run `npm run db:pull` after the Python side is live).
+- **A schema change is a two-file change:** edit `backend/models.py` AND `apps/web/db/schema.ts` to keep them in sync (or run `pnpm --filter @fsf/web db:pull` after the Python side is live).
 - **`create_all` never alters existing tables.** Adding a column to a table that already exists in a running DB requires a manual migration, e.g.:
   ```sh
   docker compose exec -T db psql -U postgres -d craigslist -c \
@@ -33,22 +33,25 @@ python -m backend.classify    # self-check for the AI gate (runs _demo(); live h
 ```
 Several modules have an `if __name__ == "__main__": _demo()` self-check — run the module directly to exercise it.
 
-### Web (Next.js, run from `./web`)
+### Web + monorepo (TypeScript, pnpm workspaces + Turborepo, run from repo root)
+Requires Node 22 (`.nvmrc`). The Next.js app lives in `apps/web` (package `@fsf/web`).
 ```sh
-npm install
-npm run dev        # serves on :8000 (next dev)
-npm run build && npm run start
-npm test           # runs the single tsx test: app/admin/listings/draft.test.ts
-npm run db:pull    # regenerate db/schema.ts from the live Postgres after a schema change
+pnpm install
+pnpm dev           # turbo → next dev on :8000
+pnpm build         # turbo → next build (standalone output)
+pnpm typecheck     # tsc --noEmit across packages
+pnpm test          # vitest across packages
+pnpm lint          # biome check (pnpm format to auto-fix)
+pnpm --filter @fsf/web db:pull   # regenerate apps/web/db/schema.ts from the live Postgres
 ```
-To run a one-off TS file as a test: `npx tsx <path>` (that's all `npm test` does).
+CI (`.github/workflows/ci.yml`) runs lint, typecheck, test and build on every PR.
 
 ### Full stack (Docker, from repo root)
 ```sh
 docker compose up --build      # Postgres + headless Firefox (Selenium) + web + scraper
 docker compose --profile tunnel up --build   # also start the Cloudflare tunnel
 ```
-**Dev footgun:** the web container only live-syncs source edits when started with **`docker compose watch`** (or `up --watch`). A plain `docker compose up` does NOT sync your edits into the container — they'll sit on disk while the container runs stale code. Either run `docker compose watch web`, or `docker compose cp ./web/<file> web:/app/<file>` to push individual files (Next dev then hot-reloads).
+**Dev footgun:** the web container only live-syncs source edits when started with **`docker compose watch`** (or `up --watch`). A plain `docker compose up` does NOT sync your edits into the container — they'll sit on disk while the container runs stale code. Either run `docker compose watch web`, or `docker compose cp ./apps/web/<file> web:/app/apps/web/<file>` to push individual files (Next dev then hot-reloads).
 
 ## How a scrape cycle works (`backend/main.py`)
 
@@ -61,7 +64,7 @@ docker compose --profile tunnel up --build   # also start the Cloudflare tunnel
 
 Scraping is Selenium/Firefox parsing the source site's gallery cards (`parse_listings`). In Docker it talks to the `selenium` service via `SELENIUM_REMOTE_URL`; bare-metal it uses a local geckodriver.
 
-## Web app structure (`./web`)
+## Web app structure (`apps/web`)
 
 Next.js 15 App Router, React 19, Radix Themes, Drizzle + `postgres`. All admin pages are server components marked `force-dynamic` (live DB reads). Mutations are server actions, not API routes.
 
