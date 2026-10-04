@@ -4,7 +4,20 @@
 // This first version mirrors the schema SQLAlchemy's create_all produced (see
 // backend/models.py) exactly — down to constraint names, so later migrations
 // can alter them — and migration 0000 is a no-op baseline for the live DB. Note: all *_at / time_* columns are ISO-ish strings, not timestamps.
-import { boolean, foreignKey, integer, json, pgTable, serial, text, unique, varchar } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  foreignKey,
+  index,
+  integer,
+  json,
+  pgTable,
+  primaryKey,
+  serial,
+  text,
+  timestamp,
+  unique,
+  varchar,
+} from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -70,4 +83,112 @@ export const scraperStatus = pgTable("scraper_status", {
   lastCycleAt: varchar("last_cycle_at").notNull(),
   cycleCount: integer("cycle_count").notNull(),
   scraperEnabled: boolean("scraper_enabled").notNull().default(true), // admin remote kill-switch
+});
+
+// ---------------------------------------------------------------------------
+// TypeScript worker tables (additive — they live alongside the legacy tables
+// above while the Python scraper is still running). Real timestamptz from day one.
+// ---------------------------------------------------------------------------
+
+const tstz = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
+
+/** One distinct search URL, scraped once per cycle no matter how many searches watch it. */
+export const searchUrls = pgTable("search_urls", {
+  id: serial("id").primaryKey(),
+  url: text("url").notNull().unique(), // normalized: no #fragment
+  nextScrapeAt: tstz("next_scrape_at").notNull().defaultNow(),
+  lastScrapedAt: tstz("last_scraped_at"),
+  lastParsedCount: integer("last_parsed_count"),
+  consecutiveEmpty: integer("consecutive_empty").notNull().default(0), // parse health: >0 for a while = layout change / block
+  lastError: text("last_error"),
+  createdAt: tstz("created_at").notNull().defaultNow(),
+});
+
+/** Which searches watch which URLs, and whether that pairing has had its no-alert baseline scrape yet. */
+export const searchWatches = pgTable(
+  "search_watches",
+  {
+    searchId: integer("search_id")
+      .notNull()
+      .references(() => searches.id, { onDelete: "cascade" }),
+    searchUrlId: integer("search_url_id")
+      .notNull()
+      .references(() => searchUrls.id, { onDelete: "cascade" }),
+    baselinedAt: tstz("baselined_at"),
+  },
+  (t) => [primaryKey({ columns: [t.searchId, t.searchUrlId] }), index("search_watches_url_idx").on(t.searchUrlId)],
+);
+
+/** A post as seen on the source — global, shared by every search that sees it. */
+export const posts = pgTable(
+  "posts",
+  {
+    id: serial("id").primaryKey(),
+    source: text("source").notNull().default("craigslist"),
+    sourceId: text("source_id").notNull(),
+    link: text("link").notNull(),
+    title: text("title").notNull(),
+    location: text("location"),
+    imageUrl: text("image_url"),
+    description: text("description"),
+    postedAt: tstz("posted_at"),
+    detailFetchedAt: tstz("detail_fetched_at"),
+    firstSeenAt: tstz("first_seen_at").notNull().defaultNow(),
+  },
+  (t) => [unique("posts_source_id_key").on(t.source, t.sourceId)],
+);
+
+/**
+ * One search's verdict on one post. Inserted as 'pending' the moment a scrape
+ * sees the pair (ON CONFLICT DO NOTHING makes that the dedup), then filled in.
+ * status: 'pending' | 'baseline' | 'excluded' | 'classified'
+ */
+export const matches = pgTable(
+  "matches",
+  {
+    id: serial("id").primaryKey(),
+    searchId: integer("search_id")
+      .notNull()
+      .references(() => searches.id, { onDelete: "cascade" }),
+    postId: integer("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    status: text("status").notNull(),
+    label: text("label"), // 'want' | 'skip'
+    score: integer("score"),
+    reason: text("reason"),
+    errorKind: text("error_kind"), // set when the verdict is a fail-open default
+    createdAt: tstz("created_at").notNull().defaultNow(),
+    decidedAt: tstz("decided_at"),
+  },
+  (t) => [
+    unique("matches_search_post_key").on(t.searchId, t.postId),
+    index("matches_search_created_idx").on(t.searchId, t.createdAt.desc()),
+    index("matches_label_idx").on(t.label),
+  ],
+);
+
+/** Delivery attempts for a 'want' match. status: 'sent' | 'failed' | 'dry_run' */
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  matchId: integer("match_id")
+    .notNull()
+    .unique()
+    .references(() => matches.id, { onDelete: "cascade" }),
+  channel: text("channel").notNull(),
+  status: text("status").notNull(),
+  error: text("error"),
+  attempts: integer("attempts").notNull().default(0),
+  createdAt: tstz("created_at").notNull().defaultNow(),
+  sentAt: tstz("sent_at"),
+});
+
+/** Single-row heartbeat + health for the TS worker (scraper_status stays the Python loop's). */
+export const workerStatus = pgTable("worker_status", {
+  id: integer("id").primaryKey().default(1),
+  lastTickAt: tstz("last_tick_at"),
+  tickCount: integer("tick_count").notNull().default(0),
+  classifierFailures: integer("classifier_failures").notNull().default(0), // in the current window
+  failOpenAlertsPaused: boolean("fail_open_alerts_paused").notNull().default(false),
+  notifyDryRun: boolean("notify_dry_run").notNull().default(false),
 });

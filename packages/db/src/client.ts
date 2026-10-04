@@ -11,7 +11,8 @@ export type CreateDbOptions = Partial<DbConfig> & {
 
 export function createDb(opts: CreateDbOptions = {}) {
   const { max = 10, ...overrides } = opts;
-  const sql = postgres({ ...dbConfigFromEnv(), ...overrides, max });
+  // onnotice: drop server NOTICEs ("schema already exists, skipping") instead of logging them
+  const sql = postgres({ ...dbConfigFromEnv(), ...overrides, max, onnotice: () => {} });
   return { db: drizzle(sql, { schema }), sql };
 }
 

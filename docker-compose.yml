@@ -89,6 +89,26 @@ services:
         - path: ./pnpm-lock.yaml
           action: rebuild
 
+  # TypeScript worker (apps/worker): replaces the Python scraper below.
+  # Shadow mode by default — it classifies and records everything but sends
+  # nothing until WORKER_NOTIFY_DRY_RUN=0. No Selenium needed (plain HTTP).
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: craigslist
+      DB_PORT: 5432
+      NOTIFY_DRY_RUN: ${WORKER_NOTIFY_DRY_RUN:-1}
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   scraper:
     build: .
     command: python -m backend.main

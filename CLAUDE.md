@@ -13,7 +13,9 @@ A free-listings scraper + self-serve web app. A Python loop scrapes each user's 
 - **`@fsf/db` (`packages/db`) owns the schema.** `packages/db/src/schema.ts` (Drizzle) is the single source of truth; numbered SQL migrations live in `packages/db/migrations` and are applied by `pnpm --filter @fsf/db db:migrate` (the compose `migrate` service runs it before web starts). The web app imports tables from `@fsf/db`.
 - **Python is a legacy reader/writer** (being replaced by the TypeScript worker — see the refactor plan). `backend/models.py` still calls `create_all`, which only creates *missing* tables, so it is harmless against a migrated DB. The scraper writes `listings`, heartbeats `scraper_status`, and reads `users`/`searches`.
 
-- **`@fsf/engine` (`packages/engine`) is the TypeScript replacement for `backend/`'s logic**, as a pure library: Craigslist parsing over plain HTTP (no browser; see `docs/decisions/0001-http-not-browser.md`), the exclude filter, the Claude classifier, notifiers, and the shared form validation (`@fsf/engine/validate`, which the web app re-exports from `lib/validate.ts`). Functions take their dependencies (fetch, Anthropic client, clock) as arguments. It isn't wired to a worker yet; the Python scraper still runs in production.
+- **`@fsf/engine` (`packages/engine`) is the TypeScript replacement for `backend/`'s logic**, as a pure library: Craigslist parsing over plain HTTP (no browser; see `docs/decisions/0001-http-not-browser.md`), the exclude filter, the Claude classifier, notifiers, and the shared form validation (`@fsf/engine/validate`, which the web app re-exports from `lib/validate.ts`). Functions take their dependencies (fetch, Anthropic client, clock) as arguments. `apps/worker` wires it up.
+
+- **`apps/worker` (`@fsf/worker`) is the TypeScript scraper loop**, built on pg-boss queues stored in the same Postgres (schema `pgboss`): `schedule` (cron, every minute: syncs `search_urls`/`search_watches` from active searches, claims due URLs, heartbeats `worker_status`, requeues stuck matches) → `scrape-url` (one per *distinct* URL, inserts `posts`, creates `matches` rows) → `match` (exclude filter, post-page fetch, classify) → `notify`. The first scrape of each (search, URL) pair is a no-alert baseline. It honors the same `scraper_status.scraper_enabled` kill-switch. **Shadow mode:** `NOTIFY_DRY_RUN=1` (the compose default via `WORKER_NOTIFY_DRY_RUN`) records `notifications` as `dry_run` and sends nothing, so it can run next to the Python scraper. The Python scraper writes `listings`; the worker writes `posts`/`matches`. They don't overlap.
 
 ### Consequences you must respect
 
@@ -38,6 +40,8 @@ pnpm dev           # turbo → next dev on :8000
 pnpm build         # turbo → next build (standalone output)
 pnpm typecheck     # tsc --noEmit across packages
 pnpm test          # vitest across packages
+TEST_DB_PORT=55432 TEST_DB_NAME=workertest pnpm test   # also run worker integration tests (wipes that DB; name must contain "test")
+pnpm --filter @fsf/worker dev   # worker with reload (needs ANTHROPIC_API_KEY; set NOTIFY_DRY_RUN=1 to send nothing)
 pnpm lint          # biome check (pnpm format to auto-fix)
 pnpm --filter @fsf/db db:generate --name <what>   # write a migration after editing packages/db/src/schema.ts
 pnpm --filter @fsf/db db:migrate                  # apply pending migrations (uses DB_* env)
@@ -46,7 +50,7 @@ CI (`.github/workflows/ci.yml`) runs lint, typecheck, test and build on every PR
 
 ### Full stack (Docker, from repo root)
 ```sh
-docker compose up --build      # Postgres + headless Firefox (Selenium) + web + scraper
+docker compose up --build      # Postgres + migrate + web + TS worker (dry-run) + legacy Python scraper/Selenium
 docker compose --profile tunnel up --build   # also start the Cloudflare tunnel
 ```
 **Dev footgun:** the web container only live-syncs source edits when started with **`docker compose watch`** (or `up --watch`). A plain `docker compose up` does NOT sync your edits into the container — they'll sit on disk while the container runs stale code. Either run `docker compose watch web`, or `docker compose cp ./apps/web/<file> web:/app/apps/web/<file>` to push individual files (Next dev then hot-reloads).

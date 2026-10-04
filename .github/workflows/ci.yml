@@ -27,7 +27,7 @@ jobs:
         env:
           NEXT_TELEMETRY_DISABLED: "1"
 
-  migrations:
+  db:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -49,6 +49,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Apply migrations to an empty database (twice — must be idempotent)
         run: pnpm --filter @fsf/db db:migrate && pnpm --filter @fsf/db db:migrate
+      - name: Worker integration tests
+        env:
+          TEST_DB_NAME: workertest
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -c "create database workertest"
+          pnpm --filter @fsf/worker test
       - name: Schema has no un-generated changes
         run: |
           pnpm --filter @fsf/db db:generate
