@@ -13,7 +13,7 @@
   "dependencies": {
     "@fsf/db": "workspace:*",
     "@fsf/engine": "workspace:*",
-    "@openrouter/sdk": "^1.4.21",
+    "@openrouter/sdk": "^1.4.25",
     "pg-boss": "^12.36.0",
     "tsx": "^4.23.15",
     "zod": "^4.6.5"
